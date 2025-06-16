@@ -24,7 +24,7 @@ public class TwilioService : ITwilioService
 
     public TwilioService(IConfiguration configuration)
     {
-        var twilioConfig = configuration.GetRequiredSection("Twilio").Get<TwilioServiceConfig>();
+        var twilioConfig = configuration.GetRequiredSection("TwilioService").Get<TwilioServiceConfig>();
         if (twilioConfig == null)
         {
             throw new ArgumentNullException(nameof(twilioConfig), "Twilio configuration is not set in appsettings.json.");
@@ -33,7 +33,7 @@ public class TwilioService : ITwilioService
         _accountSid = twilioConfig.AccountSid;
         _authToken = twilioConfig.AuthToken;
         _callerId = twilioConfig.CallerId;
-        _webhookHost = $"https://{twilioConfig.WebhookHost}/RequestOutboundCallWebhook";
+        _webhookHost = twilioConfig.WebhookHost;
     }
 
     public void CreateClient()
@@ -48,8 +48,8 @@ public class TwilioService : ITwilioService
         
         var callOptions = new CreateCallOptions(to, from)
         {
-            Url = new Uri($"https://{_webhookHost}/RequestOutboundCallWebhook"),
-            StatusCallback = new Uri($"https://{_webhookHost}/RequestOutboundCallWebhook"),
+            Url = new Uri($"https://{_webhookHost}/api/call/webhook"),
+            StatusCallback = new Uri($"https://{_webhookHost}/api/call/webhook"),
             StatusCallbackEvent = new List<string> { "initiated", "ringing", "answered", "completed" }
         };
 
@@ -67,7 +67,7 @@ public class TwilioService : ITwilioService
 
         var connect = new Connect();
 
-        var stream = connect.Stream(url: $"wss://{_webhookHost}/media-stream");
+        var stream = connect.Stream(url: $"wss://{_webhookHost}/api/media-stream");
         stream.SetOption("phone_number", toPhoneNumber);
 
         response.Append(connect);

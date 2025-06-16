@@ -2,11 +2,12 @@
 using Microsoft.AspNetCore.Mvc;
 using VoiceCallAssistant.Interfaces;
 using Twilio.TwiML.Voice;
+using VoiceCallAssistant.Models;
 
 namespace VoiceCallAssistant.Controllers;
 
 [ApiController]
-[Route("[controller]")]
+[Route("api/call")]
 public class OutboundCallController : ControllerBase
 {
     private readonly ITwilioService _twilioService;
@@ -16,10 +17,10 @@ public class OutboundCallController : ControllerBase
         _twilioService = twilioService;
     }
 
-    [HttpPost(Name = "RequestOutboundCall")]
-    public IActionResult RequestOutboundCallPost([FromBody]string userId)
+    [HttpPost("request", Name = "RequestOutboundCall")]
+    public IActionResult RequestOutboundCallPost([FromBody]CallRequest request)
     {
-        if (string.IsNullOrEmpty(userId))
+        if (string.IsNullOrEmpty(request.UserId))
         {
             return BadRequest("User ID cannot be null or empty.");
         }
@@ -38,7 +39,7 @@ public class OutboundCallController : ControllerBase
         return Ok("Outbound call request received successfully.");
     }
 
-    [HttpPost(Name = "RequestOutboundCallWebhook")]
+    [HttpPost("webhook", Name = "RequestOutboundCallWebhook")]
     public IActionResult RequestOutboundCallWebhookPost() //Grab request and get the phone number from the request body
     {
 

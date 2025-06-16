@@ -8,6 +8,7 @@ using VoiceCallAssistant.Interfaces;
 namespace VoiceCallAssistant.Controllers;
 
 [ApiController]
+[Route("/ws")]
 public class MediaStreamController : ControllerBase
 {
     private readonly ITwilioService _twilioService;
@@ -23,7 +24,7 @@ public class MediaStreamController : ControllerBase
 
 
     [HttpGet("media-stream", Name = "MediaStreamWebsocket")]
-    public async Task Get()
+    public async Task MediaStreamWebsocketGet()
     {
         if (!HttpContext.WebSockets.IsWebSocketRequest)
         {
@@ -160,9 +161,10 @@ public class MediaStreamController : ControllerBase
                         var ts = root
                             .GetProperty("media")
                             .GetProperty("timestamp")
-                            .GetInt64();
+                            .GetString();
                         var audioBytes = Convert.FromBase64String(payloadB64);
-                        handleAudio(audioBytes, ts);
+                        var tsLong = Convert.ToInt64(ts);
+                        handleAudio(audioBytes, tsLong);
                         break;
                     }
                 case "mark":

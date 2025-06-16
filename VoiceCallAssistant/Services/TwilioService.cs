@@ -70,7 +70,7 @@ public class TwilioService : ITwilioService
 
         var connect = new Connect();
 
-        var stream = connect.Stream(url: $"wss://{_webhookHost}/api/media-stream");
+        var stream = connect.Stream(url: $"wss://{_webhookHost}/ws/media-stream");
         stream.SetOption("phone_number", toPhoneNumber);
 
         response.Append(connect);

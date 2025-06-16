@@ -50,6 +50,6 @@ public class OutboundCallController : ControllerBase
 
         Console.WriteLine($"Webhook connected with response: {htmlResponse}");
 
-        return Ok("Outbound call request received successfully.");
+        return Ok(htmlResponse);
     }
 }

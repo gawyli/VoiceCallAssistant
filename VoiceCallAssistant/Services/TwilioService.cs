@@ -65,8 +65,7 @@ public class TwilioService : ITwilioService
         Console.WriteLine("Connecting webhook");
 
         var response = new Twilio.TwiML.VoiceResponse();
-        response.Say("Hello, this is a test call from Voice Call Assistant.");
-        response.Pause(1);
+        response.Say("Connecting..");
 
         var connect = new Connect();
 

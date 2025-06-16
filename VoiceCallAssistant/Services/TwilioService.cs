@@ -39,6 +39,7 @@ public class TwilioService : ITwilioService
     public void CreateClient()
     {
         TwilioClient.Init(_accountSid, _authToken);
+        Console.WriteLine("Client Created");
     }
 
     public string MakeCall(string toPhoneNumber)
@@ -61,8 +62,10 @@ public class TwilioService : ITwilioService
 
     public string ConnectWebhook(string toPhoneNumber)
     {
+        Console.WriteLine("Connecting webhook");
+
         var response = new Twilio.TwiML.VoiceResponse();
-        response.Say("Hello, this is a test call from Voice Call Assistant. Please hold while we connect you to the user.");
+        response.Say("Hello, this is a test call from Voice Call Assistant.");
         response.Pause(1);
 
         var connect = new Connect();

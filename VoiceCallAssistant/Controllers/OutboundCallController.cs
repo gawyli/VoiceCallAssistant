@@ -29,7 +29,7 @@ public class OutboundCallController : ControllerBase
         //var user = _repository.GetUserById(userId);
 
         _twilioService.CreateClient();
-        var sip = _twilioService.MakeCall("user.PhoneNumber");
+        var sip = _twilioService.MakeCall("+447402033899");
 
         if (string.IsNullOrEmpty(sip))
         {

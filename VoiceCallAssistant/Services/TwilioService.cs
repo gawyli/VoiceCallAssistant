@@ -1,6 +1,6 @@
 ﻿using Twilio;
-using Twilio.Clients;
 using Twilio.Rest.Api.V2010.Account;
+using Twilio.TwiML;
 using Twilio.TwiML.Voice;
 using VoiceCallAssistant.Interfaces;
 
@@ -46,7 +46,7 @@ public class TwilioService : ITwilioService
     {
         var to = new Twilio.Types.PhoneNumber(toPhoneNumber);
         var from = new Twilio.Types.PhoneNumber(_callerId);
-        
+
         var callOptions = new CreateCallOptions(to, from)
         {
             Url = new Uri($"https://{_webhookHost}/api/call/webhook"),
@@ -55,22 +55,20 @@ public class TwilioService : ITwilioService
         };
 
         var call = CallResource.Create(callOptions);
-        
+
         Console.WriteLine($"Call initiated with SID: {call.Sid}");
         return call.Sid;
     }
 
-    public string ConnectWebhook(string toPhoneNumber)
+    public string ConnectWebhook()
     {
         Console.WriteLine("Connecting webhook");
 
-        var response = new Twilio.TwiML.VoiceResponse();
+        var response = new VoiceResponse();
         response.Say("Connecting..");
 
         var connect = new Connect();
-
-        var stream = connect.Stream(url: $"wss://{_webhookHost}/ws/media-stream");
-        stream.SetOption("phone_number", toPhoneNumber);
+        connect.Stream(url: $"wss://{_webhookHost}/ws/media-stream");
 
         response.Append(connect);
 

@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using VoiceCallAssistant.Interfaces;
 using Twilio.TwiML.Voice;
 using VoiceCallAssistant.Models;
+using Microsoft.AspNetCore.Http.HttpResults;
 
 namespace VoiceCallAssistant.Controllers;
 
@@ -40,16 +41,21 @@ public class OutboundCallController : ControllerBase
     }
 
     [HttpPost("webhook", Name = "RequestOutboundCallWebhook")]
-    public IActionResult RequestOutboundCallWebhookPost() //Grab request and get the phone number from the request body
+    public IActionResult RequestOutboundCallWebhookPost()
     {
+        var request = new TwilioCallRequest();
+        request.CallStatus = this.Request.Form["CallStatus"]!;
+        request.To = this.Request.Form["To"]!;
 
-        // TODO: Fetch user details from the repository
-        //var user = _repository.GetUserById(userId);
+        if (request.CallStatus == "completed")
+        {
+            Console.WriteLine("Call ended");
+            return NoContent();
+        }
 
-        var htmlResponse = _twilioService.ConnectWebhook("+447402033899");
+        var htmlResponse = _twilioService.ConnectWebhook();
 
         Console.WriteLine($"Webhook connected with response: {htmlResponse}");
-
-        return Ok(htmlResponse);
+        return Content(htmlResponse, "text/xml");
     }
 }

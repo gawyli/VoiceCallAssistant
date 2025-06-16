@@ -20,15 +20,12 @@ public class MediaStreamController : ControllerBase
     private readonly ITwilioService _twilioService;
     private readonly IConfiguration _configuration;
 
-    //private readonly IRealTimeOpenAiService _aiService;
-
     public MediaStreamController(ITwilioService twilioService, IConfiguration configuration)
     {
         _twilioService = twilioService;
         _configuration = configuration;
-        // _aiService = aiService;
-    }
 
+    }
 
     [HttpGet("media-stream", Name = "MediaStreamWebsocket")]
     public async Task MediaStreamWebsocketGet()
@@ -57,7 +54,7 @@ public class MediaStreamController : ControllerBase
         var kernel = Kernel.CreateBuilder().Build();
 
         // Start a new conversation session.
-        using RealtimeConversationSession session = await realtimeClient.StartConversationSessionAsync();
+        using RealtimeConversationSession session = await realtimeClient.StartConversationSessionAsync(cts.Token);
 
         // Initialize session options.
         // Session options control connection-wide behavior shared across all conversations,
@@ -67,56 +64,42 @@ public class MediaStreamController : ControllerBase
             Voice = ConversationVoice.Ash,
             InputAudioFormat = ConversationAudioFormat.G711Ulaw,
             OutputAudioFormat = ConversationAudioFormat.G711Ulaw,
-            Instructions = "Always start conversation with: I'm profile number 1845, welcome.",
+            InputTranscriptionOptions = new()
+            {
+                Model = "whisper-1",
+            },
+            Instructions = "You are profile number 1845. You are a Paul's assistant.",
+            TurnDetectionOptions = ConversationTurnDetectionOptions.CreateServerVoiceActivityTurnDetectionOptions()
         };
 
         // Configure session with defined options.
-        await session.ConfigureSessionAsync(sessionOptions);
+        await session.ConfigureSessionAsync(sessionOptions, cts.Token);
+
+        await session.AddItemAsync(
+            ConversationItem.CreateSystemMessage(["Welcome a user with your profile number."]), cts.Token);
 
         // Kick off both loops
         var receiveTask = ReceiveFromTwilio(webSocket, cts.Token,
             sid => streamSid = sid,
-            (audio, ts) => {
+            async (audio, ts) => {
                 latestTimestamp = ts;
-                session.SendInputAudioAsync(audio, cts.Token).GetAwaiter().GetResult();
-                Console.WriteLine($"Latest Timestamp: {ts}");
-            });
-
-
-        // Initialize dictionaries to store streamed audio responses and function arguments.
-        Dictionary<string, MemoryStream> outputAudioStreamsById = [];
-
-        // Output the size of received audio data and dispose streams.
-        foreach ((string itemId, Stream outputAudioStream) in outputAudioStreamsById)
-        {
-            Console.WriteLine($"Raw audio output for {itemId}: {outputAudioStream.Length} bytes");
-
-            outputAudioStream.Dispose();
-        }
-
+                await session.SendInputAudioAsync(audio, cts.Token);
+                //Console.WriteLine($"Latest Timestamp: {ts}");
+            },
+            markQueue);
         
         var sendTask = SendToTwilio(session, cts.Token,
             async partDelta =>
             {
-                // save audio bytes to stream by itemId
-                if (!outputAudioStreamsById.TryGetValue(partDelta.ItemId, out MemoryStream? value))
-                {
-                    value = new MemoryStream();
-                    outputAudioStreamsById[partDelta.ItemId] = value;
-                }
-                value.Write(partDelta.AudioBytes);
-
                 // audio delta
                 var delta = partDelta.AudioBytes;
                 var payloadB64 = Convert.ToBase64String(delta);
 
                 // once on first audio, capture start timestamp
                 responseStartTs ??= latestTimestamp;
-                if (partDelta.ItemId is not null)
-                {
-                    lastAssistantId = partDelta.ItemId;
-                    contentPartsIndex = partDelta.ContentPartIndex;
-                }                    
+
+                lastAssistantId = partDelta.ItemId;
+                contentPartsIndex = partDelta.ContentPartIndex;                   
 
                 // send media event
                 var mediaObj = new
@@ -127,7 +110,7 @@ public class MediaStreamController : ControllerBase
                 };
                 await webSocket.SendAsync(
                     Encoding.UTF8.GetBytes(JsonSerializer.Serialize(mediaObj)),
-                    WebSocketMessageType.Text, true, CancellationToken.None);
+                    WebSocketMessageType.Text, true, cts.Token);
 
                 // send mark
                 markQueue.Enqueue("responsePart");
@@ -139,12 +122,12 @@ public class MediaStreamController : ControllerBase
                 };
                 await webSocket.SendAsync(
                     Encoding.UTF8.GetBytes(JsonSerializer.Serialize(markObj)),
-                    WebSocketMessageType.Text, true, CancellationToken.None);
+                    WebSocketMessageType.Text, true, cts.Token);
             },
             async (speechStarted) =>
             {
                 // on speech_started event
-                if (markQueue.TryDequeue(out _) && responseStartTs.HasValue && lastAssistantId is not null)
+                if (markQueue.Any() && responseStartTs.HasValue && lastAssistantId is not null)
                 {
                     var elapsed = new TimeSpan(latestTimestamp - responseStartTs.Value);
                     await session.TruncateItemAsync(lastAssistantId, contentPartsIndex!.Value, elapsed, cts.Token);
@@ -153,8 +136,9 @@ public class MediaStreamController : ControllerBase
                     var clearObj = new { @event = "clear", streamSid = streamSid };
                     await webSocket.SendAsync(
                         Encoding.UTF8.GetBytes(JsonSerializer.Serialize(clearObj)),
-                        WebSocketMessageType.Text, true, CancellationToken.None);
+                        WebSocketMessageType.Text, true, cts.Token);
 
+                    markQueue.Clear();
                     responseStartTs = null;
                     lastAssistantId = null;
                     contentPartsIndex = null;
@@ -170,7 +154,8 @@ public class MediaStreamController : ControllerBase
             WebSocket webSocket,
             CancellationToken ct,
             Action<string> setStreamSid,
-            Action<BinaryData, long> handleAudio)
+            Action<BinaryData, long> handleAudio,
+            ConcurrentQueue<string> markQueue)
     {
         var buffer = new byte[4 * 1024];
 
@@ -221,7 +206,14 @@ public class MediaStreamController : ControllerBase
                     }
                 case "mark":
                     {
-                        // Twilio ack: you could dequeue here if you like
+                        markQueue.TryDequeue(out _);
+                        break;
+                    }
+                case "stop":
+                    {
+                        await webSocket.CloseAsync(
+                            WebSocketCloseStatus.NormalClosure,
+                            "closing", CancellationToken.None);
                         break;
                     }
             }
@@ -234,7 +226,7 @@ public class MediaStreamController : ControllerBase
         Func<ConversationItemStreamingPartDeltaUpdate, Task> handleAudioDelta,
         Func<ConversationInputSpeechStartedUpdate, Task> handleSpeechStarted)
     {
-        await foreach (ConversationUpdate update in session.ReceiveUpdatesAsync())
+        await foreach (ConversationUpdate update in session.ReceiveUpdatesAsync(ct))
         {
             // Notification indicating the start of the conversation session.
             if (update is ConversationSessionStartedUpdate sessionStartedUpdate)
@@ -267,6 +259,22 @@ public class MediaStreamController : ControllerBase
                 {
                     await handleAudioDelta(deltaUpdate);
                 }
+            }
+
+            // Notification indicating the completion of transcription from input audio.
+            if (update is ConversationInputTranscriptionFinishedUpdate transcriptionCompletedUpdate)
+            {
+                Console.WriteLine();
+                Console.WriteLine($"  -- User audio transcript: {transcriptionCompletedUpdate.Transcript}");
+                Console.WriteLine();
+            }
+
+            // Notification about error in conversation session.
+            if (update is ConversationErrorUpdate errorUpdate)
+            {
+                Console.WriteLine();
+                Console.WriteLine($"ERROR: {errorUpdate.Message}");
+                break;
             }
         }
     }

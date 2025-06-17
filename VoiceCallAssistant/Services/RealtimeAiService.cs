@@ -25,7 +25,7 @@ public class RealtimeAiService : IRealtimeAiService
         var realtimeClient = GetRealtimeConversationClient();
         var kernel = Kernel.CreateBuilder().Build();
 
-        using RealtimeConversationSession session = await realtimeClient.StartConversationSessionAsync(cts.Token);
+        RealtimeConversationSession session = await realtimeClient.StartConversationSessionAsync(cts.Token);
 
         if (conversationSessionOptions == null)
         {
@@ -36,10 +36,11 @@ public class RealtimeAiService : IRealtimeAiService
                 OutputAudioFormat = ConversationAudioFormat.G711Ulaw,
                 InputTranscriptionOptions = new()
                 {
-                    Model = "whisper-1",
+                    Model = "whisper-1"
                 },
-                Instructions = "You are profile number 1845.",
-                TurnDetectionOptions = ConversationTurnDetectionOptions.CreateServerVoiceActivityTurnDetectionOptions()
+                Instructions = "You are profile number 1845. You will be talking in English with foreignes, you can expect funny accent.",
+                TurnDetectionOptions = ConversationTurnDetectionOptions.CreateServerVoiceActivityTurnDetectionOptions(
+                    silenceDuration: new TimeSpan(0,0,0,0,500))
             };
         } 
 

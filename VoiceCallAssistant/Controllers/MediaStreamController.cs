@@ -10,7 +10,6 @@ using System.Text;
 using System.Text.Json;
 using VoiceCallAssistant.Interfaces;
 using VoiceCallAssistant.Models;
-using VoiceCallAssistant.Utilities;
 
 namespace VoiceCallAssistant.Controllers;
 
@@ -61,9 +60,8 @@ public class MediaStreamController : ControllerBase
         var receiveTask = ReceiveFromTwilio(webSocket, cts.Token,
             sid => streamSid = sid,
             async (audio, ts) => {
-                latestTimestamp = ts;
-                await session.SendInputAudioAsync(audio, cts.Token);
-                //Console.WriteLine($"Latest Timestamp: {ts}");
+            latestTimestamp = ts;
+            await session.SendInputAudioAsync(audio, cts.Token);
             },
             markQueue);
         
@@ -151,7 +149,9 @@ public class MediaStreamController : ControllerBase
                 break;
             }
 
-            var root = buffer.ExtractRootElementByte(result.Count);
+            var jsonString = Encoding.UTF8.GetString(buffer, 0, result.Count);
+            using var doc = JsonDocument.Parse(jsonString);
+            var root = doc.RootElement;
             var evt = root.GetProperty("event").GetString();
 
             switch (evt)
@@ -159,13 +159,15 @@ public class MediaStreamController : ControllerBase
                 case "start":
                     {
                         var sid = ExtractStreamSid(root);
+
                         setStreamSid(sid);
                         break;
                     }
                 case "media":
                     {
-                        var (audioBinary, ts) = ExtractPayload(root);
-                        handleAudio(audioBinary, ts);
+                        var (audioBinary, tsLong) = ExtractPayload(root);
+
+                        handleAudio(audioBinary, tsLong);
                         break;
                     }
                 case "mark":
@@ -194,7 +196,10 @@ public class MediaStreamController : ControllerBase
             // Notification indicating the start of the conversation session.
             if (update is ConversationSessionStartedUpdate sessionStartedUpdate)
             {
-                Console.WriteLine($"<<< Session started. ID: {sessionStartedUpdate.SessionId}");
+                // Start conversation first
+                await session.StartResponseAsync();
+
+                Console.WriteLine($"<<< Session started. ID: {sessionStartedUpdate.SessionId}");                
                 Console.WriteLine();
             }
 

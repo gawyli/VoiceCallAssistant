@@ -38,7 +38,7 @@ public class RealtimeAiService : IRealtimeAiService
                 {
                     Model = "whisper-1"
                 },
-                Instructions = "You are profile number 1845. You will be talking in English with foreignes, you can expect funny accent.",
+                Instructions = "You are profile number 1845. You will be talking in English with foreigners, you can expect funny accent.",
                 TurnDetectionOptions = ConversationTurnDetectionOptions.CreateServerVoiceActivityTurnDetectionOptions(
                     silenceDuration: new TimeSpan(0,0,0,0,500))
             };

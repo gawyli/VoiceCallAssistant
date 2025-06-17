@@ -18,11 +18,13 @@ namespace VoiceCallAssistant.Controllers;
 public class MediaStreamController : ControllerBase
 {
     private readonly ITwilioService _twilioService;
+    private readonly IRealtimeAiService _realtimeAiService;
     private readonly IConfiguration _configuration;
 
-    public MediaStreamController(ITwilioService twilioService, IConfiguration configuration)
+    public MediaStreamController(ITwilioService twilioService, IRealtimeAiService realtimeAiService, IConfiguration configuration)
     {
         _twilioService = twilioService;
+        _realtimeAiService = realtimeAiService;
         _configuration = configuration;
 
     }
@@ -44,47 +46,22 @@ public class MediaStreamController : ControllerBase
     {
         var cts = new CancellationTokenSource();
         var markQueue = new ConcurrentQueue<string>();
+
         string? streamSid = null;
         long latestTimestamp = 0;
         string? lastAssistantId = null;
         int? contentPartsIndex = null;
         long? responseStartTs = null;
 
-        var realtimeClient = GetRealtimeConversationClient();
-        var kernel = Kernel.CreateBuilder().Build();
-
-        // Start a new conversation session.
-        using RealtimeConversationSession session = await realtimeClient.StartConversationSessionAsync(cts.Token);
-
-        // Initialize session options.
-        // Session options control connection-wide behavior shared across all conversations,
-        // including audio input format and voice activity detection settings.
-        ConversationSessionOptions sessionOptions = new()
-        {
-            Voice = ConversationVoice.Ash,
-            InputAudioFormat = ConversationAudioFormat.G711Ulaw,
-            OutputAudioFormat = ConversationAudioFormat.G711Ulaw,
-            InputTranscriptionOptions = new()
-            {
-                Model = "whisper-1",
-            },
-            Instructions = "You are profile number 1845. You are a Paul's assistant.",
-            TurnDetectionOptions = ConversationTurnDetectionOptions.CreateServerVoiceActivityTurnDetectionOptions()
-        };
-
-        // Configure session with defined options.
-        await session.ConfigureSessionAsync(sessionOptions, cts.Token);
-
-        await session.AddItemAsync(
-            ConversationItem.CreateSystemMessage(["Welcome a user with your profile number."]), cts.Token);
+        string systemMessage = "Welcome a user with your profile number.";
+        using var session = await _realtimeAiService.CreateConversationSessionAsync(cts, systemMessage);
 
         // Kick off both loops
         var receiveTask = ReceiveFromTwilio(webSocket, cts.Token,
             sid => streamSid = sid,
             async (audio, ts) => {
-                latestTimestamp = ts;
-                await session.SendInputAudioAsync(audio, cts.Token);
-                //Console.WriteLine($"Latest Timestamp: {ts}");
+            latestTimestamp = ts;
+            await session.SendInputAudioAsync(audio, cts.Token);
             },
             markQueue);
         
@@ -172,8 +149,8 @@ public class MediaStreamController : ControllerBase
                 break;
             }
 
-            var text = Encoding.UTF8.GetString(buffer, 0, result.Count);
-            using var doc = JsonDocument.Parse(text);
+            var jsonString = Encoding.UTF8.GetString(buffer, 0, result.Count);
+            using var doc = JsonDocument.Parse(jsonString);
             var root = doc.RootElement;
             var evt = root.GetProperty("event").GetString();
 
@@ -181,26 +158,15 @@ public class MediaStreamController : ControllerBase
             {
                 case "start":
                     {
-                        var sid = root
-                            .GetProperty("start")
-                            .GetProperty("streamSid")
-                            .GetString()!;
+                        var sid = ExtractStreamSid(root);
+
                         setStreamSid(sid);
                         break;
                     }
                 case "media":
                     {
-                        var payloadB64 = root
-                            .GetProperty("media")
-                            .GetProperty("payload")
-                            .GetString()!;
-                        var ts = root
-                            .GetProperty("media")
-                            .GetProperty("timestamp")
-                            .GetString();
-                        var audioBytes = Convert.FromBase64String(payloadB64);
-                        var audioBinary = new BinaryData(audioBytes);
-                        var tsLong = Convert.ToInt64(ts);
+                        var (audioBinary, tsLong) = ExtractPayload(root);
+
                         handleAudio(audioBinary, tsLong);
                         break;
                     }
@@ -220,7 +186,6 @@ public class MediaStreamController : ControllerBase
         }
     }
 
-    
     private async Task SendToTwilio(RealtimeConversationSession session,
         CancellationToken ct,
         Func<ConversationItemStreamingPartDeltaUpdate, Task> handleAudioDelta,
@@ -231,7 +196,10 @@ public class MediaStreamController : ControllerBase
             // Notification indicating the start of the conversation session.
             if (update is ConversationSessionStartedUpdate sessionStartedUpdate)
             {
-                Console.WriteLine($"<<< Session started. ID: {sessionStartedUpdate.SessionId}");
+                // Start conversation first
+                await session.StartResponseAsync();
+
+                Console.WriteLine($"<<< Session started. ID: {sessionStartedUpdate.SessionId}");                
                 Console.WriteLine();
             }
 
@@ -278,32 +246,30 @@ public class MediaStreamController : ControllerBase
             }
         }
     }
-    
 
-    // OpenAI Realtime Implementation
-    private RealtimeConversationClient GetRealtimeConversationClient()
+    private (BinaryData audioBinary, long ts) ExtractPayload(JsonElement root)
     {
-        var openAIOptions = _configuration.GetSection(OpenAIOptions.SectionName).Get<OpenAIOptions>();
-        //var azureOpenAIOptions = _configuration.GetSection(AzureOpenAIOptions.SectionName).Get<AzureOpenAIOptions>();
+        var payloadB64 = root
+            .GetProperty("media")
+            .GetProperty("payload")
+            .GetString()!;
+        var ts = root
+            .GetProperty("media")
+            .GetProperty("timestamp")
+            .GetString();
+        var audioBytes = Convert.FromBase64String(payloadB64);
+        var audioBinary = new BinaryData(audioBytes);
+        var tsLong = Convert.ToInt64(ts);
 
-        if (openAIOptions is not null && openAIOptions.IsValid)
-        {
-            return new RealtimeConversationClient(
-                model: openAIOptions.Model,
-                credential: new ApiKeyCredential(openAIOptions.ApiKey));
-        }
-        //else if (azureOpenAIOptions is not null && azureOpenAIOptions.IsValid)
-        //{
-        //    var client = new AzureOpenAIClient(
-        //        endpoint: new Uri(azureOpenAIOptions.Endpoint),
-        //        credential: new ApiKeyCredential(azureOpenAIOptions.ApiKey));
+        return (audioBinary, tsLong);
+    }
 
-        //    return client.GetRealtimeConversationClient(azureOpenAIOptions.DeploymentName);
-        //}
-        else
-        {
-            throw new Exception("OpenAI/Azure OpenAI configuration was not found.");
-        }
+    private string ExtractStreamSid(JsonElement root)
+    {
+        return root
+            .GetProperty("start")
+            .GetProperty("streamSid")
+            .GetString()!;
     }
 }
 

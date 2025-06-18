@@ -53,17 +53,17 @@ public class TwilioService : ITwilioService
         Console.WriteLine("Client Created");
     }
 
-    private bool ValidateRequest(HttpRequest request)
+    public bool ValidateRequest(HttpRequest request)
     {
-        var requestUrl = request.GetDisplayUrl();
-        var requestSignature = request.Headers["X-Twilio-Signature"].ToString();
-        var requestParameters = request.Query
-            .ToDictionary(kvp => kvp.Key, kvp => kvp.Value.ToString());
+        var url = request.GetDisplayUrl();
+        var signature = request.Headers["X-Twilio-Signature"].ToString();
+        var bodyForm = request.Form.ToDictionary(kvp => kvp.Key, kvp => kvp.Value.ToString());
+        var body = bodyForm.OrderBy(kvp => kvp.Key).ToDictionary();
 
         try
         {
             var validator = new RequestValidator(_authToken);
-            var isValid = validator.Validate(requestUrl, requestParameters, requestSignature);
+            var isValid = validator.Validate(url, body, signature);
             if (!isValid)
             {
                 Console.WriteLine("Invalid request signature.");
@@ -98,14 +98,8 @@ public class TwilioService : ITwilioService
         return call.Sid;
     }
 
-    public string ConnectWebhook(HttpRequest request)
+    public string ConnectWebhook()
     {
-        if (!ValidateRequest(request))
-        {
-            Console.WriteLine("Invalid request signature.");
-            throw new InvalidOperationException("Invalid request signature.");
-        }
-
         Console.WriteLine("Connecting webhook");
 
         var response = new VoiceResponse();

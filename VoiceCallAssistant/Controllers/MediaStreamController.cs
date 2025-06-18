@@ -38,6 +38,13 @@ public class MediaStreamController : ControllerBase
             return;
         }
 
+        // TODO: Research how validate websocket
+        // if (!_twilioService.ValidateRequest(this.Request))
+        // {
+        //     HttpContext.Response.StatusCode = StatusCodes.Status401Unauthorized;
+        //     return;
+        // }
+
         using var webSocket = await HttpContext.WebSockets.AcceptWebSocketAsync();
         await HandleMediaStream(webSocket);
     }

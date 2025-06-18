@@ -60,9 +60,9 @@ public class MediaStreamController : ControllerBase
         var receiveTask = _twilioService.ReceiveFrom(webSocket, cts.Token,
             sid => streamSid = sid,
             async (audio, ts) => {
-            latestTimestamp = ts;
-            await session.SendInputAudioAsync(audio, cts.Token);
-            },
+                latestTimestamp = ts;
+                await session.SendInputAudioAsync(audio, cts.Token);
+                },
             markQueue);
         
         var sendTask = _twilioService.SendTo(session, cts.Token,

@@ -12,27 +12,32 @@ namespace VoiceCallAssistant.Controllers;
 public class OutboundCallController : ControllerBase
 {
     private readonly ITwilioService _twilioService;
+    private readonly IRepository _repository;
 
-    public OutboundCallController(ITwilioService twilioService)
+    public OutboundCallController(ITwilioService twilioService, IRepository repository)
     {
         _twilioService = twilioService;
+        _repository = repository;
     }
 
     [HttpPost("request", Name = "RequestOutboundCall")]
-    public IActionResult RequestOutboundCallPost([FromBody]CallRequest request)
+    public async Task<IActionResult> RequestOutboundCallPost([FromBody]CallRequest request, CancellationToken cancellationToken)
     {
-        if (string.IsNullOrEmpty(request.UserId))
+        if (string.IsNullOrEmpty(request.RoutineId))
         {
-            return BadRequest("User ID cannot be null or empty.");
+            return BadRequest("Routine ID cannot be null or empty.");
         }
 
-        // TODO: Fetch user details from the repository
-        //var user = _repository.GetUserById(userId);
+        var routine = await _repository.GetByIdAsync<Routine>(request.RoutineId, cancellationToken);
+        if (routine == null)
+        {
+            return NotFound($"Routine with ID {request.RoutineId} not found.");
+        }
 
         _twilioService.CreateClient();
-        var sip = _twilioService.MakeCall("xxx");
+        var callSid = _twilioService.MakeCall(routine.PhoneNumber);
 
-        if (string.IsNullOrEmpty(sip))
+        if (string.IsNullOrEmpty(callSid))
         {
             return StatusCode(500, "Failed to initiate outbound call.");
         }

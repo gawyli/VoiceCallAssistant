@@ -1,4 +1,5 @@
-﻿using OpenAI.RealtimeConversation;
+﻿using Microsoft.AspNetCore.Mvc.Rendering;
+using OpenAI.RealtimeConversation;
 using System.Collections.Concurrent;
 using System.Net.WebSockets;
 
@@ -8,7 +9,7 @@ public interface ITwilioService
 {
     public void CreateClient();
     public string MakeCall(string toPhoneNumber);
-    public string ConnectWebhook();
+    public string ConnectWebhook(HttpRequest request);
 
     public Task ReceiveFrom(
             WebSocket webSocket,

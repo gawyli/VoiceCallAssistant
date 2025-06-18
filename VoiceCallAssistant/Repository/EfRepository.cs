@@ -114,7 +114,7 @@ public class EfRepository : IRepository
         }
         else
         {
-            throw new ArgumentNullException("DB config - None");
+            throw new ArgumentNullException($"No DbContext configured for type {typeof(T).Name}");
         }
     }
 }

@@ -35,9 +35,9 @@ public class OutboundCallController : ControllerBase
         }
 
         _twilioService.CreateClient();
-        var sip = _twilioService.MakeCall(routine.PhoneNumber);
+        var callSid = _twilioService.MakeCall(routine.PhoneNumber);
 
-        if (string.IsNullOrEmpty(sip))
+        if (string.IsNullOrEmpty(callSid))
         {
             return StatusCode(500, "Failed to initiate outbound call.");
         }

@@ -1,12 +1,7 @@
 ﻿using Microsoft.Azure.Cosmos;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Configuration;
-using System;
 using System.Configuration;
-using Twilio.Rest.Api.V2010.Account.Usage.Record;
-using Twilio.TwiML.Voice;
 using VoiceCallAssistant.Interfaces;
-using VoiceCallAssistant.Models;
 using VoiceCallAssistant.Repository;
 using VoiceCallAssistant.Services;
 

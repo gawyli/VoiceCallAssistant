@@ -7,8 +7,10 @@ using Twilio;
 using Twilio.Rest.Api.V2010.Account;
 using Twilio.TwiML;
 using Twilio.TwiML.Voice;
+using Twilio.Security;
 using VoiceCallAssistant.Interfaces;
 using Task = System.Threading.Tasks.Task;
+using Microsoft.AspNetCore.Http.Extensions;
 
 namespace VoiceCallAssistant.Services;
 
@@ -18,6 +20,7 @@ public class TwilioServiceConfig
     public string AuthToken { get; set; } = null!;
     public string CallerId { get; set; } = null!;
     public string WebhookHost { get; set; } = null!;
+    public int TimeCallLimit { get; set; }
 
 }
 
@@ -27,6 +30,7 @@ public class TwilioService : ITwilioService
     private readonly string _authToken;
     private readonly string _callerId;
     private readonly string _webhookHost;
+    private readonly int _timeCallLimit;
 
     public TwilioService(IConfiguration configuration)
     {
@@ -40,12 +44,40 @@ public class TwilioService : ITwilioService
         _authToken = twilioConfig.AuthToken;
         _callerId = twilioConfig.CallerId;
         _webhookHost = twilioConfig.WebhookHost;
+        _timeCallLimit = twilioConfig.TimeCallLimit;
     }
 
     public void CreateClient()
     {
         TwilioClient.Init(_accountSid, _authToken);
         Console.WriteLine("Client Created");
+    }
+
+    public bool ValidateRequest(HttpRequest request)
+    {
+        // TODO: validate websocket
+        var url = request.GetDisplayUrl();
+        var signature = request.Headers["X-Twilio-Signature"].ToString();
+        var body = request.Form.OrderBy(kvp => kvp.Key).ToDictionary(kvp => kvp.Key, kvp => kvp.Value.ToString());
+        //var parameters = request.QueryString.ToString();
+
+        try
+        {
+            var validator = new RequestValidator(_authToken);
+            var isValid = validator.Validate(url, body, signature);
+            if (!isValid)
+            {
+                Console.WriteLine("Invalid request signature.");
+                return false;
+            }
+            Console.WriteLine($"Request validation result: {isValid}");
+            return isValid;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error validating request: {ex.Message}");
+            return false;
+        }
     }
 
     public string MakeCall(string toPhoneNumber)
@@ -57,7 +89,8 @@ public class TwilioService : ITwilioService
         {
             Url = new Uri($"https://{_webhookHost}/api/call/webhook"),
             StatusCallback = new Uri($"https://{_webhookHost}/api/call/webhook"),
-            StatusCallbackEvent = new List<string> { "initiated", "ringing", "answered", "completed" }
+            StatusCallbackEvent = new List<string> { "initiated", "ringing", "answered", "completed" },
+            TimeLimit = _timeCallLimit
         };
 
         var call = CallResource.Create(callOptions);

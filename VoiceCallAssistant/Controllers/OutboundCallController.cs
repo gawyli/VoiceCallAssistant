@@ -4,11 +4,14 @@ using VoiceCallAssistant.Interfaces;
 using Twilio.TwiML.Voice;
 using VoiceCallAssistant.Models;
 using Microsoft.AspNetCore.Http.HttpResults;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.Identity.Web.Resource;
 
 namespace VoiceCallAssistant.Controllers;
 
 [ApiController]
 [Route("api/call")]
+[Authorize()]
 public class OutboundCallController : ControllerBase
 {
     private readonly ITwilioService _twilioService;
@@ -20,6 +23,7 @@ public class OutboundCallController : ControllerBase
         _repository = repository;
     }
 
+    [RequiredScope("call.request")]
     [HttpPost("request", Name = "RequestOutboundCall")]
     public async Task<IActionResult> RequestOutboundCallPost([FromBody]CallRequest request, CancellationToken cancellationToken)
     {

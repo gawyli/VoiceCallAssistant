@@ -32,17 +32,8 @@ public class EfRepository : IRepository
             entity.Id = Guid.NewGuid().ToString();
         }
         //entity.OnCreated(_clock?.CurrentDateTime);
-        try
-        {
-            await GetDbContext<T>().Set<T>().AddAsync(entity, cancellationToken);
-            await GetDbContext<T>().SaveChangesAsync(cancellationToken);
-        }
-        catch (Exception ex)
-        {
-
-            throw ex;
-        }
-        
+        await GetDbContext<T>().Set<T>().AddAsync(entity, cancellationToken);
+        await GetDbContext<T>().SaveChangesAsync(cancellationToken);
 
         return entity;
     }

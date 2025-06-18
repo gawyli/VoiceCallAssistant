@@ -9,14 +9,15 @@ public interface ITwilioService
 {
     public void CreateClient();
     public string MakeCall(string toPhoneNumber);
-    public string ConnectWebhook(HttpRequest request);
+    public string ConnectWebhook();
+    public bool ValidateRequest(HttpRequest request);
 
     public Task ReceiveFrom(
-            WebSocket webSocket,
-            CancellationToken ct,
-            Action<string> setStreamSid,
-            Action<BinaryData, long> handleAudio,
-            ConcurrentQueue<string> markQueue);
+                WebSocket webSocket,
+                CancellationToken ct,
+                Action<string> setStreamSid,
+                Action<BinaryData, long> handleAudio,
+                ConcurrentQueue<string> markQueue);
 
     public Task SendTo(RealtimeConversationSession session,
         CancellationToken ct,

@@ -69,7 +69,7 @@ public class OutboundCallController : ControllerBase
             return NoContent();
         }
 
-        var htmlResponse = _twilioService.ConnectWebhook();
+        var htmlResponse = _twilioService.ConnectWebhook(request.To);
 
         Console.WriteLine($"Webhook connected with response: {htmlResponse}");
         return Content(htmlResponse, "text/xml");

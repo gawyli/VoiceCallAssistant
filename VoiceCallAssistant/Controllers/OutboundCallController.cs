@@ -48,6 +48,13 @@ public class OutboundCallController : ControllerBase
     [HttpPost("webhook", Name = "RequestOutboundCallWebhook")]
     public IActionResult RequestOutboundCallWebhookPost()
     {
+        // TODO: Activate validation once deployed
+        // if (!_twilioService.ValidateRequest(this.Request))
+        // {
+        //     Console.WriteLine("Invalid request signature.");
+        //     throw new InvalidOperationException("Invalid request signature.");
+        // }
+
         var request = new TwilioCallRequest();
         request.CallStatus = this.Request.Form["CallStatus"]!;
         request.To = this.Request.Form["To"]!;

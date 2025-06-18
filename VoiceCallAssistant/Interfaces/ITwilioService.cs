@@ -9,7 +9,7 @@ public interface ITwilioService
 {
     public void CreateClient();
     public string MakeCall(string toPhoneNumber);
-    public string ConnectWebhook();
+    public string ConnectWebhook(string toPhoneNumber);
     public bool ValidateRequest(HttpRequest request);
 
     public Task ReceiveFrom(

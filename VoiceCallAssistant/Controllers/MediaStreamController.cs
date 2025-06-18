@@ -29,7 +29,7 @@ public class MediaStreamController : ControllerBase
 
     }
 
-    [HttpGet("media-stream", Name = "MediaStreamWebsocket")]
+    [HttpPost("media-stream", Name = "MediaStreamWebsocket")]
     public async Task MediaStreamWebsocketGet()
     {
         if (!HttpContext.WebSockets.IsWebSocketRequest)
@@ -51,6 +51,8 @@ public class MediaStreamController : ControllerBase
 
     private async Task HandleMediaStream(WebSocket webSocket)
     {
+        var phoneNumber = this.HttpContext.Request.Query["phone-number"].ToString();
+
         var cts = new CancellationTokenSource();
         var markQueue = new ConcurrentQueue<string>();
 
@@ -60,6 +62,7 @@ public class MediaStreamController : ControllerBase
         int? contentPartsIndex = null;
         long? responseStartTs = null;
 
+        // Get a prompt from the Routine Object from Db
         string systemMessage = "Welcome a user with your profile number.";
         using var session = await _realtimeAiService.CreateConversationSessionAsync(cts, systemMessage);
 

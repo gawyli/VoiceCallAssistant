@@ -11,6 +11,7 @@ using Twilio.Security;
 using VoiceCallAssistant.Interfaces;
 using Task = System.Threading.Tasks.Task;
 using Microsoft.AspNetCore.Http.Extensions;
+using System.Security.Policy;
 
 namespace VoiceCallAssistant.Services;
 
@@ -99,7 +100,7 @@ public class TwilioService : ITwilioService
         return call.Sid;
     }
 
-    public string ConnectWebhook()
+    public string ConnectWebhook(string phoneNumber)
     {
         Console.WriteLine("Connecting webhook");
 
@@ -107,8 +108,16 @@ public class TwilioService : ITwilioService
         response.Say("Connecting..");
 
         var connect = new Connect();
-        connect.Stream(url: $"wss://{_webhookHost}/ws/media-stream");
+        //connect.Stream(url: $"wss://{_webhookHost}/ws/media-stream");
 
+        // Add query parameter to auth websocket connection
+        // dd query parameter for routine ID
+        var stream = new Twilio.TwiML.Voice.Stream(url: $"wss://{_webhookHost}/ws/media-stream");
+        stream.Parameter(name: "phone-number", value: $"{phoneNumber}");
+        //stream.Parameter(name: "Auth", value: "Token");
+        stream.StatusCallbackMethod = Twilio.TwiML.Voice.Stream.StatusCallbackMethodEnum.Post;
+
+        connect.Append(stream);
         response.Append(connect);
 
         Console.WriteLine($"Returning TwiML for the outbound call");

@@ -47,6 +47,9 @@ public static class ServiceCollectionRegistration
                 options.RequestTimeout(TimeSpan.FromMinutes(1));*/
             }));
 
+        
+
+       
         return services;
     }
 }

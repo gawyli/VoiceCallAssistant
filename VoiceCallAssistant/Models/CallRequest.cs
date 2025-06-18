@@ -2,5 +2,6 @@
 
 public class CallRequest
 {
-    public string UserId { get; set; } = null!;
+    public string RoutineId { get; set; } = null!;
+
 }

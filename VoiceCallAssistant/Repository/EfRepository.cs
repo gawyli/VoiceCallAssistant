@@ -27,9 +27,22 @@ public class EfRepository : IRepository
 
     public async Task<T> AddAsync<T>(T entity, CancellationToken cancellationToken) where T : BaseEntity//, IAggregateRoot
     {
+        if (string.IsNullOrEmpty(entity.Id))
+        {
+            entity.Id = Guid.NewGuid().ToString();
+        }
         //entity.OnCreated(_clock?.CurrentDateTime);
-        await GetDbContext<T>().Set<T>().AddAsync(entity, cancellationToken);
-        await GetDbContext<T>().SaveChangesAsync(cancellationToken);
+        try
+        {
+            await GetDbContext<T>().Set<T>().AddAsync(entity, cancellationToken);
+            await GetDbContext<T>().SaveChangesAsync(cancellationToken);
+        }
+        catch (Exception ex)
+        {
+
+            throw ex;
+        }
+        
 
         return entity;
     }

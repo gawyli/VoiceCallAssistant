@@ -35,8 +35,7 @@ public class OutboundCallController : ControllerBase
         }
 
         _twilioService.CreateClient();
-        //var sip = _twilioService.MakeCall(routine.PhoneNumber);
-        var sip = _twilioService.MakeCall("xxx");
+        var sip = _twilioService.MakeCall(routine.PhoneNumber);
 
         if (string.IsNullOrEmpty(sip))
         {

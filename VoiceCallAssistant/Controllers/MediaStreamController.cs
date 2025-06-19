@@ -29,7 +29,7 @@ public class MediaStreamController : ControllerBase
 
     }
 
-    [HttpPost("media-stream", Name = "MediaStreamWebsocket")]
+    [HttpGet("media-stream", Name = "MediaStreamWebsocket")]
     public async Task MediaStreamWebsocketGet()
     {
         if (!HttpContext.WebSockets.IsWebSocketRequest)
@@ -69,10 +69,12 @@ public class MediaStreamController : ControllerBase
         // Kick off both loops
         var receiveTask = _twilioService.ReceiveFrom(webSocket, cts.Token,
             sid => streamSid = sid,
-            async (audio, ts) => {
+            ph => phoneNumber = ph,
+            async (audio, ts) =>
+            {
                 latestTimestamp = ts;
                 await session.SendInputAudioAsync(audio, cts.Token);
-                },
+            },
             markQueue);
         
         var sendTask = _twilioService.SendTo(session, cts.Token,

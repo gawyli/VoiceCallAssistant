@@ -16,6 +16,7 @@ public interface ITwilioService
                 WebSocket webSocket,
                 CancellationToken ct,
                 Action<string> setStreamSid,
+                Action<string> setPhoneNumber,
                 Action<BinaryData, long> handleAudio,
                 ConcurrentQueue<string> markQueue);
 

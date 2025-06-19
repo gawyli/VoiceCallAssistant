@@ -89,8 +89,8 @@ public class TwilioService : ITwilioService
         var callOptions = new CreateCallOptions(to, from)
         {
             Url = new Uri($"https://{_webhookHost}/api/call/webhook/{routineId}"),
-            StatusCallback = new Uri($"https://{_webhookHost}/api/call/webhook"),
-            StatusCallbackEvent = new List<string> { "initiated", "ringing", "answered", "completed" },
+            StatusCallback = new Uri($"https://{_webhookHost}/api/call/webhook/{routineId}"),
+            StatusCallbackEvent = new List<string> { "initiated", "completed" },
             TimeLimit = _timeCallLimit
         };
 

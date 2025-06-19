@@ -39,7 +39,7 @@ public class OutboundCallController : ControllerBase
         }
 
         _twilioService.CreateClient();
-        var callSid = _twilioService.MakeCall(routine.PhoneNumber);
+        var callSid = _twilioService.MakeCall(routine.PhoneNumber, routine.Id);
 
         if (string.IsNullOrEmpty(callSid))
         {
@@ -49,7 +49,7 @@ public class OutboundCallController : ControllerBase
         return Ok("Outbound call request received successfully.");
     }
 
-    [HttpPost("webhook", Name = "RequestOutboundCallWebhook")]
+    [HttpPost("webhook/{routineId}", Name = "RequestOutboundCallWebhook")]
     public IActionResult RequestOutboundCallWebhookPost()
     {
         // TODO: Activate validation once deployed
@@ -62,6 +62,7 @@ public class OutboundCallController : ControllerBase
         var request = new TwilioCallRequest();
         request.CallStatus = this.Request.Form["CallStatus"]!;
         request.To = this.Request.Form["To"]!;
+        var routineId = this.Request.QueryString.ToString();
 
         if (request.CallStatus == "completed")
         {

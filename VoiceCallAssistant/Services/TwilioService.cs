@@ -115,7 +115,7 @@ public class TwilioService : ITwilioService
         var stream = new Twilio.TwiML.Voice.Stream(url: $"wss://{_webhookHost}/ws/media-stream");
         stream.Parameter(name: "phone-number", value: $"{phoneNumber}");
         //stream.Parameter(name: "Auth", value: "Token");
-        stream.StatusCallbackMethod = Twilio.TwiML.Voice.Stream.StatusCallbackMethodEnum.Post;
+        //stream.StatusCallbackMethod = Twilio.TwiML.Voice.Stream.StatusCallbackMethodEnum.Post;
 
         connect.Append(stream);
         response.Append(connect);
@@ -128,6 +128,7 @@ public class TwilioService : ITwilioService
             WebSocket webSocket,
             CancellationToken ct,
             Action<string> setStreamSid,
+            Action<string> setPhoneNumber,
             Action<BinaryData, long> handleAudio,
             ConcurrentQueue<string> markQueue)
     {
@@ -157,7 +158,15 @@ public class TwilioService : ITwilioService
                     {
                         var sid = ExtractStreamSid(root);
 
+                        var phoneNumber = root
+                            .GetProperty("start")
+                            .GetProperty("customParameters")
+                            .GetProperty("phoneNumber")
+                            .GetString()!;
+
                         setStreamSid(sid);
+                        setPhoneNumber(phoneNumber);
+
                         break;
                     }
                 case "media":

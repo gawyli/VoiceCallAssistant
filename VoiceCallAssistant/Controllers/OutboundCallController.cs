@@ -11,7 +11,7 @@ namespace VoiceCallAssistant.Controllers;
 
 [ApiController]
 [Route("api/call")]
-[Authorize()]
+//[Authorize()]
 public class OutboundCallController : ControllerBase
 {
     private readonly ITwilioService _twilioService;
@@ -23,7 +23,7 @@ public class OutboundCallController : ControllerBase
         _repository = repository;
     }
 
-    [RequiredScope("call.request")]
+    //[RequiredScope("call.request")]
     [HttpPost("request", Name = "RequestOutboundCall")]
     public async Task<IActionResult> RequestOutboundCallPost([FromBody]CallRequest request, CancellationToken cancellationToken)
     {

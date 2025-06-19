@@ -11,6 +11,7 @@ using System.Text;
 using System.Text.Json;
 using VoiceCallAssistant.Interfaces;
 using VoiceCallAssistant.Models;
+using VoiceCallAssistant.Utilities;
 
 namespace VoiceCallAssistant.Controllers;
 
@@ -32,7 +33,7 @@ public class MediaStreamController : ControllerBase
 
     }
 
-    [HttpGet("media-stream", Name = "MediaStreamWebsocket")]
+    [HttpGet("media-stream/{routineId}", Name = "MediaStreamWebsocket")]
     public async Task MediaStreamWebsocketGet()
     {
         if (!HttpContext.WebSockets.IsWebSocketRequest)
@@ -47,12 +48,33 @@ public class MediaStreamController : ControllerBase
         //     HttpContext.Response.StatusCode = StatusCodes.Status401Unauthorized;
         //     return;
         // }
-        
+
+        var routineId = this.Request.Path.GetLastItem('/');
+        if (string.IsNullOrEmpty(routineId))
+        {
+            HttpContext.Response.StatusCode = StatusCodes.Status400BadRequest;
+            return;
+        }
+
+        string systemMessage =
+        """
+        You are wake up call asistant. Your instructions are specifided between markup <PresonlalisedPrompt></PresonlalisedPrompt>. 
+        Follow the instructions in the conversation you have with the user.
+
+        """;
+
+        var routine = await _repository.GetByIdAsync<Routine>(routineId, this.HttpContext.RequestAborted);
+        if (routine != null)
+        {
+            // TODO: Add Interests and Tasks
+            systemMessage += $"<PersonalisedPrompt> {routine.Preferences.PersonalisedPrompt} </PersonalisedPrompt>";
+        }
+
         using var webSocket = await HttpContext.WebSockets.AcceptWebSocketAsync();
-        await HandleMediaStreamNew(webSocket);
+        await HandleMediaStream(webSocket, systemMessage);
     }
 
-    private async Task HandleMediaStreamNew(WebSocket webSocket)
+    private async Task HandleMediaStream(WebSocket webSocket, string systemMessage)
     {
         var cts = new CancellationTokenSource();
         // Set reasonable timeout
@@ -60,7 +82,6 @@ public class MediaStreamController : ControllerBase
 
         try
         {
-            // State tracking
             var state = new CallState
             {
                 StreamSid = null,
@@ -71,18 +92,12 @@ public class MediaStreamController : ControllerBase
                 MarkQueue = new ConcurrentQueue<string>()
             };
 
-            // Initialize AI conversation
-            //string systemMessage = "You are wake up call asistant. Welcome your user as his specified between markup <PresonlalisedPrompt></PresonlalisedPrompt>";
-
-            string systemMessage = "You are wake up call asistant. Welcome your user with happy and encourage mood";
             using var session = await _realtimeAiService.CreateConversationSessionAsync(cts, systemMessage);
 
-            // Start processing
             await ProcessWebSocketConnection(webSocket, session, state, cts.Token);
         }
         catch (Exception ex)
         {
-            // Log exception
             Console.WriteLine($"Error processing WebSocket: {ex.InnerException}");
 
             await CloseWebSocketWithError(webSocket, "Internal server error occurred");          
@@ -110,11 +125,9 @@ public class MediaStreamController : ControllerBase
         CallState state, 
         CancellationToken ct)
     {
-        // Start both message loops
         var receiveTask = ProcessIncomingMessages(webSocket, session, state, ct);
         var sendTask = ProcessOutgoingMessages(webSocket, session, state, ct);
 
-        // Wait for both to complete
         await Task.WhenAll(receiveTask, sendTask);
     }
 
@@ -142,12 +155,10 @@ public class MediaStreamController : ControllerBase
                     break;
                 }
 
-                // Process the message
                 await ProcessIncomingMessage(buffer, result.Count, session, state, ct);
             }
             catch (WebSocketException ex)
             {
-                // Handle WebSocket errors
                 Console.WriteLine($"WebSocket error occurred: {ex.InnerException}");
                 break;
             }
@@ -173,11 +184,12 @@ public class MediaStreamController : ControllerBase
         switch (eventType)
         {
             case "start":
-                await HandleStartEvent(root, session, state, ct);
+                HandleStartEvent(root, state);
                 break;
 
             case "media":
-                await HandleMediaEvent(root, session, state, ct);
+                var audioBinary = HandleMediaEvent(root, state);
+                await session.SendInputAudioAsync(audioBinary);
                 break;
 
             case "mark":
@@ -190,85 +202,39 @@ public class MediaStreamController : ControllerBase
         }
     }
 
-    private async Task HandleStartEvent(
+    private void HandleStartEvent(
         JsonElement root, 
-        RealtimeConversationSession session, 
-        CallState state,
-        CancellationToken ct)
+        CallState state)
     {
-        try
-        {
-            // Extract streamSid from the start event
-            state.StreamSid = root
+        state.StreamSid = root
                 .GetProperty("start")
                 .GetProperty("streamSid")
                 .GetString()!;
 
-            // Extract phone number if available in custom parameters
-            if (root.GetProperty("start").TryGetProperty("customParameters", out var customParams))
-            {
-                if (customParams.TryGetProperty("phone-number", out var phoneNumberProp))
-                {
-                    string? phoneNumber = phoneNumberProp.GetString();
-                    if (!string.IsNullOrEmpty(phoneNumber))
-                    {
-                        //var routine = await _repository.GetBySpec(phoneNumber);
-                        //await session .AddItemAsync(
-                        //    ConversationItem.CreateSystemMessage(
-                        //        [$"<PersonalisedPrompt> {routine.PersonalisedPrompt} </PersonalisedPrompt>"]), ct);
-
-                        // You can store or log the phone number here if needed
-                        Console.WriteLine($"Call connected with phone number: {phoneNumber}");
-                    }
-                }
-            }
-
-            Console.WriteLine($"Stream started with SID: {state.StreamSid}");
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Error processing start event: {ex.Message}");
-        }
+        Console.WriteLine($"Stream started with SID: {state.StreamSid}");
     }
 
-    private async Task HandleMediaEvent(
-        JsonElement root, 
-        RealtimeConversationSession session, 
-        CallState state, 
-        CancellationToken ct)
+    private BinaryData HandleMediaEvent(
+        JsonElement root,  
+        CallState state)
     {
-        try
-        {
-            // Extract audio payload
-            var payloadB64 = root
-                .GetProperty("media")
-                .GetProperty("payload")
-                .GetString();
+        var payloadB64 = root
+            .GetProperty("media")
+            .GetProperty("payload")
+            .GetString()!;
 
-            // Extract timestamp
-            var timestampStr = root
-                .GetProperty("media")
-                .GetProperty("timestamp")
-                .GetString();
+        var timestampStr = root
+            .GetProperty("media")
+            .GetProperty("timestamp")
+            .GetString()!;
 
-            if (string.IsNullOrEmpty(payloadB64) || string.IsNullOrEmpty(timestampStr))
-                return;
+        var audioBytes = Convert.FromBase64String(payloadB64);
+        var audioBinary = new BinaryData(audioBytes);
+        var timestamp = Convert.ToInt64(timestampStr);
 
-            // Convert to binary data
-            var audioBytes = Convert.FromBase64String(payloadB64);
-            var audioBinary = new BinaryData(audioBytes);
-            var timestamp = Convert.ToInt64(timestampStr);
+        state.LatestTimestamp = timestamp;
 
-            // Update the timestamp for barge-in calculations
-            state.LatestTimestamp = timestamp;
-
-            // Send the audio to the AI session
-            await session.SendInputAudioAsync(audioBinary, ct);
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Error processing media event: {ex.Message}");
-        }
+        return audioBinary;
     }
 
     private async Task ProcessOutgoingMessages(
@@ -297,7 +263,6 @@ public class MediaStreamController : ControllerBase
                 {
                     Console.WriteLine($"Speech detection started at {speechStartedUpdate.AudioStartTime}");
 
-                    // Handle barge-in logic
                     if (state.MarkQueue.Any() && state.ResponseStartTs.HasValue && state.LastAssistantId != null)
                     {
                         var elapsed = new TimeSpan(state.LatestTimestamp - (long)state.ResponseStartTs);
@@ -307,7 +272,6 @@ public class MediaStreamController : ControllerBase
                             elapsed,
                             ct);
 
-                        // Send clear signal to Twilio to stop audio
                         var clearObj = new { @event = "clear", streamSid = state.StreamSid };
                         await webSocket.SendAsync(
                             Encoding.UTF8.GetBytes(JsonSerializer.Serialize(clearObj)),
@@ -315,7 +279,6 @@ public class MediaStreamController : ControllerBase
                             true,
                             ct);
 
-                        // Reset state for next response
                         state.MarkQueue.Clear();
                         state.ResponseStartTs = null;
                         state.LastAssistantId = null;
@@ -324,28 +287,22 @@ public class MediaStreamController : ControllerBase
                     continue;
                 }
 
-                // Process speech end events if needed
                 if (update is ConversationInputSpeechFinishedUpdate speechFinishedUpdate)
                 {
                     Console.WriteLine($"Speech detection ended at {speechFinishedUpdate.AudioEndTime}");
                     continue;
                 }
 
-                // Process AI-generated audio response
                 if (update is ConversationItemStreamingPartDeltaUpdate deltaUpdate && deltaUpdate.AudioBytes != null)
                 {
-                    // Convert audio bytes to base64 for transmission
                     var delta = deltaUpdate.AudioBytes;
                     var payloadB64 = Convert.ToBase64String(delta);
 
-                    // On first audio chunk, capture start timestamp for barge-in timing
                     state.ResponseStartTs ??= state.LatestTimestamp;
 
-                    // Store AI response tracking info for possible truncation
                     state.LastAssistantId = deltaUpdate.ItemId;
                     state.ContentPartsIndex = deltaUpdate.ContentPartIndex;
 
-                    // Send media event with audio payload
                     var mediaObj = new
                     {
                         @event = "media",
@@ -356,7 +313,6 @@ public class MediaStreamController : ControllerBase
                         Encoding.UTF8.GetBytes(JsonSerializer.Serialize(mediaObj)),
                         WebSocketMessageType.Text, true, ct);
 
-                    // Send mark to track response parts for barge-in
                     state.MarkQueue.Enqueue("responsePart");
                     var markObj = new
                     {
@@ -371,14 +327,12 @@ public class MediaStreamController : ControllerBase
                     continue;
                 }
 
-                // Process transcription completion
                 if (update is ConversationInputTranscriptionFinishedUpdate transcriptionUpdate)
                 {
                     Console.WriteLine($"User said: {transcriptionUpdate.Transcript}");
                     continue;
                 }
 
-                // Handle errors
                 if (update is ConversationErrorUpdate errorUpdate)
                 {
                     Console.WriteLine($"AI conversation error: {errorUpdate.Message}");
@@ -386,15 +340,12 @@ public class MediaStreamController : ControllerBase
                 }
             }
         }
-        catch (OperationCanceledException)
-        {
-            // Expected when cancellation is requested
-        }
         catch (Exception ex)
         {
             Console.WriteLine($"Error in AI processing: {ex.Message}");
+
             // Optionally close the websocket on fatal errors
-            // await webSocket.CloseAsync(WebSocketCloseStatus.InternalServerError, "AI processing error", CancellationToken.None);
+            await webSocket.CloseAsync(WebSocketCloseStatus.InternalServerError, "AI processing error", CancellationToken.None);
         }
     }
 }

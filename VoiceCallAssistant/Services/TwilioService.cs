@@ -109,7 +109,7 @@ public class TwilioService : ITwilioService
 
         var connect = new Connect();
 
-        var stream = new Twilio.TwiML.Voice.Stream(url: $"wss://{_webhookHost}/ws/media-stream");
+        var stream = new Twilio.TwiML.Voice.Stream(url: $"wss://{_webhookHost}/ws/media-stream/{routineId}");
         stream.Parameter(name: "routineId", value: $"{routineId}");
         //stream.Parameter(name: "Auth", value: "Token");
 

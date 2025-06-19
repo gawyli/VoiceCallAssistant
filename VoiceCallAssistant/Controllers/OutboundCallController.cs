@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using VoiceCallAssistant.Interfaces;
 using Twilio.TwiML.Voice;
 using VoiceCallAssistant.Models;
+using VoiceCallAssistant.Utilities;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Identity.Web.Resource;
@@ -59,10 +60,10 @@ public class OutboundCallController : ControllerBase
         //     throw new InvalidOperationException("Invalid request signature.");
         // }
 
-        var request = new TwilioCallRequest();
-        request.CallStatus = this.Request.Form["CallStatus"]!;
-        request.To = this.Request.Form["To"]!;
-        var routineId = this.Request.QueryString.ToString();
+        var request = new TwilioCallRequest
+        {
+            CallStatus = this.Request.Form["CallStatus"]!
+        };
 
         if (request.CallStatus == "completed")
         {
@@ -70,7 +71,8 @@ public class OutboundCallController : ControllerBase
             return NoContent();
         }
 
-        var htmlResponse = _twilioService.ConnectWebhook(request.To);
+        var routineId = this.Request.Path.GetLastItem('/');
+        var htmlResponse = _twilioService.ConnectWebhook(routineId);
 
         Console.WriteLine($"Webhook connected with response: {htmlResponse}");
         return Content(htmlResponse, "text/xml");

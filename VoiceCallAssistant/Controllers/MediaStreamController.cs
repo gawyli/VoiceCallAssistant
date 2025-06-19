@@ -47,16 +47,14 @@ public class MediaStreamController : ControllerBase
         //     HttpContext.Response.StatusCode = StatusCodes.Status401Unauthorized;
         //     return;
         // }
-
+        
         using var webSocket = await HttpContext.WebSockets.AcceptWebSocketAsync();
         await HandleMediaStreamNew(webSocket);
     }
 
     private async Task HandleMediaStreamNew(WebSocket webSocket)
     {
-        using var cts = new CancellationTokenSource();
-        var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cts.Token, HttpContext.RequestAborted);
-
+        var cts = new CancellationTokenSource();
         // Set reasonable timeout
         cts.CancelAfter(TimeSpan.FromMinutes(30));
 
@@ -74,26 +72,20 @@ public class MediaStreamController : ControllerBase
             };
 
             // Initialize AI conversation
-            string systemMessage = "You are wake up call asistant. Welcome your user as his specified between markup <PresonlalisedPrompt></PresonlalisedPrompt>";
+            //string systemMessage = "You are wake up call asistant. Welcome your user as his specified between markup <PresonlalisedPrompt></PresonlalisedPrompt>";
+
+            string systemMessage = "You are wake up call asistant. Welcome your user with happy and encourage mood";
             using var session = await _realtimeAiService.CreateConversationSessionAsync(cts, systemMessage);
 
             // Start processing
-            await ProcessWebSocketConnection(webSocket, session, state, linkedCts.Token);
-        }
-        catch (OperationCanceledException)
-        {
-            // Normal cancellation - ignore
+            await ProcessWebSocketConnection(webSocket, session, state, cts.Token);
         }
         catch (Exception ex)
         {
             // Log exception
             Console.WriteLine($"Error processing WebSocket: {ex.InnerException}");
 
-            // Close socket if still open
-            if (webSocket.State == WebSocketState.Open)
-            {
-                await CloseWebSocketWithError(webSocket, "Internal server error occurred");
-            }
+            await CloseWebSocketWithError(webSocket, "Internal server error occurred");          
         }
         finally
         {
@@ -103,10 +95,13 @@ public class MediaStreamController : ControllerBase
 
     private async Task CloseWebSocketWithError(WebSocket webSocket, string message)
     {
-        await webSocket.CloseAsync(
-                WebSocketCloseStatus.InternalServerError,
-                message,
-                CancellationToken.None);
+        if (webSocket.State == WebSocketState.Open)
+        {
+            await webSocket.CloseAsync(
+                    WebSocketCloseStatus.InternalServerError,
+                    message,
+                    CancellationToken.None);
+        }   
     }
 
     private async Task ProcessWebSocketConnection(
@@ -220,7 +215,7 @@ public class MediaStreamController : ControllerBase
                         //var routine = await _repository.GetBySpec(phoneNumber);
                         //await session .AddItemAsync(
                         //    ConversationItem.CreateSystemMessage(
-                        //        [$"{routine.PersonalisedPrompt}"]), ct);
+                        //        [$"<PersonalisedPrompt> {routine.PersonalisedPrompt} </PersonalisedPrompt>"]), ct);
 
                         // You can store or log the phone number here if needed
                         Console.WriteLine($"Call connected with phone number: {phoneNumber}");
@@ -402,93 +397,5 @@ public class MediaStreamController : ControllerBase
             // await webSocket.CloseAsync(WebSocketCloseStatus.InternalServerError, "AI processing error", CancellationToken.None);
         }
     }
-
-    //private async Task HandleMediaStream(WebSocket webSocket)
-    //{
-    //    var phoneNumber = this.HttpContext.Request.Query["phone-number"].ToString();
-
-    //    var cts = new CancellationTokenSource();
-    //    var markQueue = new ConcurrentQueue<string>();
-
-    //    string? streamSid = null;
-    //    long latestTimestamp = 0;
-    //    string? lastAssistantId = null;
-    //    int? contentPartsIndex = null;
-    //    long? responseStartTs = null;
-
-    //    // Get a prompt from the Routine Object from Db
-    //    //string systemMessage = "Welcome a user with your profile number.";
-    //    using var session = await _realtimeAiService.CreateConversationSessionAsync(cts);
-
-    //    // Kick off both loops
-    //    var receiveTask = _twilioService.ReceiveFrom(webSocket, cts.Token,
-    //        sid => streamSid = sid,
-    //        async (audio, ts) =>
-    //        {
-    //            latestTimestamp = ts;
-    //            await session.SendInputAudioAsync(audio, cts.Token);
-    //        },
-    //        markQueue);
-        
-    //    var sendTask = _twilioService.SendTo(session, cts.Token,
-    //        async partDelta =>
-    //        {
-    //            // audio delta
-    //            var delta = partDelta.AudioBytes;
-    //            var payloadB64 = Convert.ToBase64String(delta);
-
-    //            // once on first audio, capture start timestamp
-    //            responseStartTs ??= latestTimestamp;
-
-    //            lastAssistantId = partDelta.ItemId;
-    //            contentPartsIndex = partDelta.ContentPartIndex;                   
-
-    //            // send media event
-    //            var mediaObj = new
-    //            {
-    //                @event = "media",
-    //                streamSid = streamSid,
-    //                media = new { payload = payloadB64 }
-    //            };
-    //            await webSocket.SendAsync(
-    //                Encoding.UTF8.GetBytes(JsonSerializer.Serialize(mediaObj)),
-    //                WebSocketMessageType.Text, true, cts.Token);
-
-    //            // send mark
-    //            markQueue.Enqueue("responsePart");
-    //            var markObj = new
-    //            {
-    //                @event = "mark",
-    //                streamSid = streamSid,
-    //                mark = new { name = "responsePart" }
-    //            };
-    //            await webSocket.SendAsync(
-    //                Encoding.UTF8.GetBytes(JsonSerializer.Serialize(markObj)),
-    //                WebSocketMessageType.Text, true, cts.Token);
-    //        },
-    //        async (speechStarted) =>
-    //        {
-    //            // on speech_started event
-    //            if (markQueue.Any() && responseStartTs.HasValue && lastAssistantId is not null)
-    //            {
-    //                var elapsed = new TimeSpan(latestTimestamp - responseStartTs.Value);
-    //                await session.TruncateItemAsync(lastAssistantId, contentPartsIndex!.Value, elapsed, cts.Token);
-
-    //                // clear signal back to Twilio
-    //                var clearObj = new { @event = "clear", streamSid = streamSid };
-    //                await webSocket.SendAsync(
-    //                    Encoding.UTF8.GetBytes(JsonSerializer.Serialize(clearObj)),
-    //                    WebSocketMessageType.Text, true, cts.Token);
-
-    //                markQueue.Clear();
-    //                responseStartTs = null;
-    //                lastAssistantId = null;
-    //                contentPartsIndex = null;
-    //            }
-    //        });
-
-    //    await Task.WhenAll(receiveTask, sendTask);
-    //    cts.Cancel();
-    //}
 }
 

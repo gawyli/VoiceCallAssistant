@@ -15,8 +15,7 @@ public interface ITwilioService
     public Task ReceiveFrom(
                 WebSocket webSocket,
                 CancellationToken ct,
-                Action<string> setStreamSid,
-                Action<string> setPhoneNumber,
+                Action<string> setStreamSid,                
                 Action<BinaryData, long> handleAudio,
                 ConcurrentQueue<string> markQueue);
 

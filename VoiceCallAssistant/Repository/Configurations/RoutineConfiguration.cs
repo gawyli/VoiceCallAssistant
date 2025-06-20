@@ -11,7 +11,7 @@ public class RoutineConfiguration : BaseItemConfiguration<Routine>
         base.Configure(builder);
 
         builder.ToContainer("Routines");
-        builder.HasPartitionKey(r => r.Id); //set to id when deployed
+        builder.HasPartitionKey(r => r.Username); //set to id when deployed
         builder.Property(r => r.UserProfileId);
         builder.Property(r => r.Username).HasMaxLength(100);
         builder.Property(r => r.ScheduledTime);

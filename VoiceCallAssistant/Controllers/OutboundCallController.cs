@@ -3,12 +3,16 @@ using Microsoft.AspNetCore.Mvc;
 using VoiceCallAssistant.Interfaces;
 using Twilio.TwiML.Voice;
 using VoiceCallAssistant.Models;
+using VoiceCallAssistant.Utilities;
 using Microsoft.AspNetCore.Http.HttpResults;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.Identity.Web.Resource;
 
 namespace VoiceCallAssistant.Controllers;
 
 [ApiController]
 [Route("api/call")]
+//[Authorize()]
 public class OutboundCallController : ControllerBase
 {
     private readonly ITwilioService _twilioService;
@@ -20,6 +24,7 @@ public class OutboundCallController : ControllerBase
         _repository = repository;
     }
 
+    //[RequiredScope("call.request")]
     [HttpPost("request", Name = "RequestOutboundCall")]
     public async Task<IActionResult> RequestOutboundCallPost([FromBody]CallRequest request, CancellationToken cancellationToken)
     {
@@ -35,8 +40,8 @@ public class OutboundCallController : ControllerBase
         }
 
         _twilioService.CreateClient();
-        var callSid = _twilioService.MakeCall(routine.PhoneNumber);
 
+        var callSid = _twilioService.MakeCall(routine.PhoneNumber, routine.Id);
         if (string.IsNullOrEmpty(callSid))
         {
             return StatusCode(500, "Failed to initiate outbound call.");
@@ -45,7 +50,7 @@ public class OutboundCallController : ControllerBase
         return Ok("Outbound call request received successfully.");
     }
 
-    [HttpPost("webhook", Name = "RequestOutboundCallWebhook")]
+    [HttpPost("webhook/{routineId}", Name = "RequestOutboundCallWebhook")]
     public IActionResult RequestOutboundCallWebhookPost()
     {
         // TODO: Activate validation once deployed
@@ -55,9 +60,10 @@ public class OutboundCallController : ControllerBase
         //     throw new InvalidOperationException("Invalid request signature.");
         // }
 
-        var request = new TwilioCallRequest();
-        request.CallStatus = this.Request.Form["CallStatus"]!;
-        request.To = this.Request.Form["To"]!;
+        var request = new TwilioCallRequest
+        {
+            CallStatus = this.Request.Form["CallStatus"]!
+        };
 
         if (request.CallStatus == "completed")
         {
@@ -65,7 +71,8 @@ public class OutboundCallController : ControllerBase
             return NoContent();
         }
 
-        var htmlResponse = _twilioService.ConnectWebhook();
+        var routineId = this.Request.Path.GetLastItem('/');
+        var htmlResponse = _twilioService.ConnectWebhook(routineId);
 
         Console.WriteLine($"Webhook connected with response: {htmlResponse}");
         return Content(htmlResponse, "text/xml");

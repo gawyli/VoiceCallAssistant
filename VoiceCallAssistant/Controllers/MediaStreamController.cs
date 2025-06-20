@@ -155,7 +155,7 @@ public class MediaStreamController : ControllerBase
                     break;
                 }
 
-                await ProcessIncomingMessage(buffer, result.Count, session, state, ct);
+                await ProcessIncomingMessage(buffer, result.Count, webSocket, session, state, ct);
             }
             catch (WebSocketException ex)
             {
@@ -168,6 +168,7 @@ public class MediaStreamController : ControllerBase
     private async Task ProcessIncomingMessage(
         byte[] buffer, 
         int count,
+        WebSocket webSocket,
         RealtimeConversationSession session, 
         CallState state, 
         CancellationToken ct)
@@ -197,7 +198,10 @@ public class MediaStreamController : ControllerBase
                 break;
 
             case "stop":
-                // Handle stop event
+                await webSocket.CloseAsync(
+                    WebSocketCloseStatus.NormalClosure,
+                    "Stream ended",
+                    CancellationToken.None);
                 break;
         }
     }
@@ -345,7 +349,7 @@ public class MediaStreamController : ControllerBase
             Console.WriteLine($"Error in AI processing: {ex.Message}");
 
             // Optionally close the websocket on fatal errors
-            await webSocket.CloseAsync(WebSocketCloseStatus.InternalServerError, "AI processing error", CancellationToken.None);
+            //await webSocket.CloseAsync(WebSocketCloseStatus.InternalServerError, "AI processing error", CancellationToken.None);
         }
     }
 }

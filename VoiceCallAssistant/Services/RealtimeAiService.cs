@@ -16,14 +16,13 @@ public class RealtimeAiService : IRealtimeAiService
         _configuration = configuration;
     }
 
-    // Should I use using when calling this method?
     public async Task<RealtimeConversationSession> CreateConversationSessionAsync(
         CancellationTokenSource cts,  
         string? systemMessage = null,
         ConversationSessionOptions? conversationSessionOptions = null)
     {
         var realtimeClient = GetRealtimeConversationClient();
-        var kernel = Kernel.CreateBuilder().Build();
+        var kernel = Kernel.CreateBuilder().Build(); // TODO: Check if this is needed or can be removed.
 
         RealtimeConversationSession session = await realtimeClient.StartConversationSessionAsync(cts.Token);
 

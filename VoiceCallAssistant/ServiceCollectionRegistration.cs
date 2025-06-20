@@ -1,8 +1,7 @@
-﻿using Azure.Monitor.OpenTelemetry.AspNetCore;
+﻿using Azure.Monitor.OpenTelemetry.Exporter;
 using Microsoft.Azure.Cosmos;
 using Microsoft.EntityFrameworkCore;
-using OpenTelemetry.Instrumentation.AspNetCore;
-using OpenTelemetry.Instrumentation.Http;
+using OpenTelemetry.Trace;
 using Serilog;
 using System.Configuration;
 using VoiceCallAssistant.Interfaces;
@@ -17,12 +16,17 @@ public static class ServiceCollectionRegistration
     {
         logging.ClearProviders();
 
-        services.AddOpenTelemetry().UseAzureMonitor();
+        services.AddOpenTelemetry().WithTracing(tracing =>
+        {
+            tracing.AddAspNetCoreInstrumentation()
+                .AddHttpClientInstrumentation();
+        })
+        .UseAzureMonitorExporter(options => options.ConnectionString = configuration.GetRequiredSection("AzureMonitor").GetSection("ConnectionString").Value);
 
         services.AddSerilog((services, lc) => lc
             .ReadFrom.Configuration(configuration)
-            .WriteTo.OpenTelemetry()
-            .Enrich.FromLogContext());
+            .Enrich.FromLogContext(), 
+            writeToProviders: true);
 
         return services;
     }

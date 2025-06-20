@@ -45,7 +45,7 @@ public class OutboundCallController : ControllerBase
             _logger.Warning("Routine with ID {RoutineId} not found in the repository.", request.RoutineId);
             return NotFound($"Routine with ID {request.RoutineId} not found.");
         }
-
+        
         try
         {
             _twilioService.CreateClient();

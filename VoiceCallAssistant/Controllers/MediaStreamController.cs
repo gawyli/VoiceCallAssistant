@@ -196,11 +196,11 @@ public class MediaStreamController : ControllerBase
             return;
 
         var eventType = eventProp.GetString();
-        _logger.Debug("Received WebSocket event: {EventType}", eventType);
 
         switch (eventType)
         {
             case "start":
+                _logger.Debug("Received WebSocket event: {EventType}", eventType);
                 HandleStartEvent(root, state);
                 break;
 
@@ -254,7 +254,6 @@ public class MediaStreamController : ControllerBase
         var timestamp = Convert.ToInt64(timestampStr);
 
         state.LatestTimestamp = timestamp;
-        _logger.Debug("Received Audio with Timestamp: {Timestamp}", timestampStr);
 
         return audioBinary;
     }

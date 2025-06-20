@@ -1,6 +1,8 @@
 ﻿using Azure.Monitor.OpenTelemetry.AspNetCore;
 using Microsoft.Azure.Cosmos;
 using Microsoft.EntityFrameworkCore;
+using OpenTelemetry.Instrumentation.AspNetCore;
+using OpenTelemetry.Instrumentation.Http;
 using Serilog;
 using System.Configuration;
 using VoiceCallAssistant.Interfaces;

@@ -91,6 +91,7 @@ public class TwilioService : ITwilioService
             Url = new Uri($"https://{_webhookHost}/api/call/webhook/{routineId}"),
             StatusCallback = new Uri($"https://{_webhookHost}/api/call/webhook/{routineId}"),
             StatusCallbackEvent = new List<string> { "initiated", "completed" },
+            StatusCallbackMethod = Twilio.Http.HttpMethod.Post,
             TimeLimit = _timeCallLimit
         };
 

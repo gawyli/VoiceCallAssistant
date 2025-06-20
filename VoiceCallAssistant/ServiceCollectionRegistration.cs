@@ -1,5 +1,8 @@
-﻿using Microsoft.Azure.Cosmos;
+﻿using Azure.Monitor.OpenTelemetry.Exporter;
+using Microsoft.Azure.Cosmos;
 using Microsoft.EntityFrameworkCore;
+using OpenTelemetry.Trace;
+using Serilog;
 using System.Configuration;
 using VoiceCallAssistant.Interfaces;
 using VoiceCallAssistant.Repository;
@@ -9,6 +12,24 @@ namespace VoiceCallAssistant;
 
 public static class ServiceCollectionRegistration
 {
+    public static IServiceCollection AddLogging(this IServiceCollection services, ILoggingBuilder logging, IConfiguration configuration)
+    {
+        logging.ClearProviders();
+
+        services.AddOpenTelemetry().WithTracing(tracing =>
+        {
+            tracing.AddAspNetCoreInstrumentation()
+                .AddHttpClientInstrumentation();
+        })
+        .UseAzureMonitorExporter(options => options.ConnectionString = configuration.GetRequiredSection("AzureMonitor").GetSection("ConnectionString").Value);
+
+        services.AddSerilog((services, lc) => lc
+            .ReadFrom.Configuration(configuration)
+            .Enrich.FromLogContext(), 
+            writeToProviders: true);
+
+        return services;
+    }
     public static IServiceCollection AddServices(this IServiceCollection services)
     {
         services.AddScoped<ITwilioService, TwilioService>();

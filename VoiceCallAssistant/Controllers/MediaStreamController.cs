@@ -12,6 +12,7 @@ using System.Text.Json;
 using VoiceCallAssistant.Interfaces;
 using VoiceCallAssistant.Models;
 using VoiceCallAssistant.Utilities;
+using ILogger = Serilog.ILogger;
 
 namespace VoiceCallAssistant.Controllers;
 
@@ -19,13 +20,15 @@ namespace VoiceCallAssistant.Controllers;
 [Route("/ws")]
 public class MediaStreamController : ControllerBase
 {
+    private readonly ILogger _logger;
     private readonly IRepository _repository;
     private readonly ITwilioService _twilioService;
     private readonly IRealtimeAiService _realtimeAiService;
     private readonly IConfiguration _configuration;
 
-    public MediaStreamController(IRepository repository, ITwilioService twilioService, IRealtimeAiService realtimeAiService, IConfiguration configuration)
+    public MediaStreamController(ILogger logger, IRepository repository, ITwilioService twilioService, IRealtimeAiService realtimeAiService, IConfiguration configuration)
     {
+        _logger = logger;
         _repository = repository;
         _twilioService = twilioService;
         _realtimeAiService = realtimeAiService;
@@ -38,7 +41,8 @@ public class MediaStreamController : ControllerBase
     {
         if (!HttpContext.WebSockets.IsWebSocketRequest)
         {
-            HttpContext.Response.StatusCode = StatusCodes.Status400BadRequest;
+            _logger.Warning("Rejected non-WebSocket request to media-stream endpoint.");
+            this.HttpContext.Response.StatusCode = StatusCodes.Status400BadRequest;
             return;
         }
 
@@ -52,9 +56,12 @@ public class MediaStreamController : ControllerBase
         var routineId = this.Request.Path.GetLastItem('/');
         if (string.IsNullOrEmpty(routineId))
         {
-            HttpContext.Response.StatusCode = StatusCodes.Status400BadRequest;
+            _logger.Warning("Routine ID was not provided or invalid in WebSocket request path.");
+            this.HttpContext.Response.StatusCode = StatusCodes.Status400BadRequest;
             return;
         }
+
+        _logger.Information("WebSocket request received for Routine ID: {RoutineId}", routineId);
 
         string systemMessage =
         """
@@ -64,11 +71,16 @@ public class MediaStreamController : ControllerBase
         """;
 
         var routine = await _repository.GetByIdAsync<Routine>(routineId, this.HttpContext.RequestAborted);
-        if (routine != null)
+        if (routine == null)
         {
-            // TODO: Add Interests and Tasks
-            systemMessage += $"<PersonalisedPrompt> {routine.Preferences.PersonalisedPrompt} </PersonalisedPrompt>";
+            _logger.Warning("Routine not found for Routine ID: {RoutineId}", routineId);
+            return;
         }
+
+        _logger.Information("Routine loaded for Routine ID: {RoutineId}", routineId);
+
+        // TODO: Add Interests and Tasks
+        systemMessage += $"<PersonalisedPrompt> {routine.Preferences.PersonalisedPrompt} </PersonalisedPrompt>";
 
         using var webSocket = await HttpContext.WebSockets.AcceptWebSocketAsync();
         await HandleMediaStream(webSocket, systemMessage);
@@ -94,12 +106,13 @@ public class MediaStreamController : ControllerBase
 
             using var session = await _realtimeAiService.CreateConversationSessionAsync(cts, systemMessage);
 
+            _logger.Information("Conversation session started.");
+
             await ProcessWebSocketConnection(webSocket, session, state, cts.Token);
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error processing WebSocket: {ex.InnerException}");
-
+            _logger.Error(ex, "Error processing WebSocket stream.");
             await CloseWebSocketWithError(webSocket, "Internal server error occurred");          
         }
         finally
@@ -112,6 +125,7 @@ public class MediaStreamController : ControllerBase
     {
         if (webSocket.State == WebSocketState.Open)
         {
+            _logger.Warning("Closing WebSocket with error: {Message}", message);
             await webSocket.CloseAsync(
                     WebSocketCloseStatus.InternalServerError,
                     message,
@@ -148,6 +162,7 @@ public class MediaStreamController : ControllerBase
 
                 if (result.MessageType == WebSocketMessageType.Close)
                 {
+                    _logger.Information("WebSocket closed by client.");
                     await webSocket.CloseAsync(
                         WebSocketCloseStatus.NormalClosure,
                         "Client closed connection",
@@ -159,7 +174,7 @@ public class MediaStreamController : ControllerBase
             }
             catch (WebSocketException ex)
             {
-                Console.WriteLine($"WebSocket error occurred: {ex.InnerException}");
+                _logger.Error(ex, "WebSocket error while receiving.");
                 break;
             }
         }
@@ -181,6 +196,7 @@ public class MediaStreamController : ControllerBase
             return;
 
         var eventType = eventProp.GetString();
+        _logger.Debug("Received WebSocket event: {EventType}", eventType);
 
         switch (eventType)
         {
@@ -198,6 +214,7 @@ public class MediaStreamController : ControllerBase
                 break;
 
             case "stop":
+                _logger.Information("Stream stop event received.");
                 await webSocket.CloseAsync(
                     WebSocketCloseStatus.NormalClosure,
                     "Stream ended",
@@ -215,7 +232,7 @@ public class MediaStreamController : ControllerBase
                 .GetProperty("streamSid")
                 .GetString()!;
 
-        Console.WriteLine($"Stream started with SID: {state.StreamSid}");
+        _logger.Information("Stream started with SID: {StreamSid}", state.StreamSid);
     }
 
     private BinaryData HandleMediaEvent(
@@ -237,6 +254,7 @@ public class MediaStreamController : ControllerBase
         var timestamp = Convert.ToInt64(timestampStr);
 
         state.LatestTimestamp = timestamp;
+        _logger.Debug("Received Audio with Timestamp: {Timestamp}", timestampStr);
 
         return audioBinary;
     }
@@ -257,15 +275,15 @@ public class MediaStreamController : ControllerBase
                 // Session start - initialize the response
                 if (update is ConversationSessionStartedUpdate sessionStartedUpdate)
                 {
-                    await session.StartResponseAsync();
-                    Console.WriteLine($"Session started: {sessionStartedUpdate.SessionId}");
+                    _logger.Information("AI session started: {SessionId}", sessionStartedUpdate.SessionId);
+                    await session.StartResponseAsync();                    
                     continue;
                 }
 
                 // Process incoming speech detection (used for barge-in)
                 if (update is ConversationInputSpeechStartedUpdate speechStartedUpdate)
                 {
-                    Console.WriteLine($"Speech detection started at {speechStartedUpdate.AudioStartTime}");
+                    _logger.Debug("Speech detection started at {Time}", speechStartedUpdate.AudioStartTime);
 
                     if (state.MarkQueue.Any() && state.ResponseStartTs.HasValue && state.LastAssistantId != null)
                     {
@@ -293,7 +311,7 @@ public class MediaStreamController : ControllerBase
 
                 if (update is ConversationInputSpeechFinishedUpdate speechFinishedUpdate)
                 {
-                    Console.WriteLine($"Speech detection ended at {speechFinishedUpdate.AudioEndTime}");
+                    _logger.Debug("Speech detection ended at {Time}", speechFinishedUpdate.AudioEndTime);
                     continue;
                 }
 
@@ -317,12 +335,12 @@ public class MediaStreamController : ControllerBase
                         Encoding.UTF8.GetBytes(JsonSerializer.Serialize(mediaObj)),
                         WebSocketMessageType.Text, true, ct);
 
-                    state.MarkQueue.Enqueue("responsePart");
+                    state.MarkQueue.Enqueue(state.LastAssistantId);
                     var markObj = new
                     {
                         @event = "mark",
                         streamSid = state.StreamSid,
-                        mark = new { name = "responsePart" }
+                        mark = new { name = state.LastAssistantId }
                     };
                     await webSocket.SendAsync(
                         Encoding.UTF8.GetBytes(JsonSerializer.Serialize(markObj)),
@@ -331,22 +349,22 @@ public class MediaStreamController : ControllerBase
                     continue;
                 }
 
-                if (update is ConversationInputTranscriptionFinishedUpdate transcriptionUpdate)
-                {
-                    Console.WriteLine($"User said: {transcriptionUpdate.Transcript}");
-                    continue;
-                }
+                //if (update is ConversationInputTranscriptionFinishedUpdate transcriptionUpdate)
+                //{
+                //    _logger.Debug("User said: {Transcript}", transcriptionUpdate.Transcript);
+                //    continue;
+                //}
 
                 if (update is ConversationErrorUpdate errorUpdate)
                 {
-                    Console.WriteLine($"AI conversation error: {errorUpdate.Message}");
+                    _logger.Error("AI conversation error: {ErrorMessage}", errorUpdate.Message);
                     break;
                 }
             }
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error in AI processing: {ex.Message}");
+            _logger.Error(ex, "Error in AI processing");
 
             // Optionally close the websocket on fatal errors
             //await webSocket.CloseAsync(WebSocketCloseStatus.InternalServerError, "AI processing error", CancellationToken.None);

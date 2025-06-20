@@ -4,15 +4,18 @@ using OpenAI.RealtimeConversation;
 using System.ClientModel;
 using VoiceCallAssistant.Interfaces;
 using VoiceCallAssistant.Models;
+using ILogger = Serilog.ILogger;
 
 namespace VoiceCallAssistant.Services;
 
 public class RealtimeAiService : IRealtimeAiService
 {
+    private readonly ILogger _logger;
     private readonly IConfiguration _configuration;
 
-    public RealtimeAiService(IConfiguration configuration)
+    public RealtimeAiService(ILogger logger, IConfiguration configuration)
     {
+        _logger = logger;
         _configuration = configuration;
     }
 
@@ -21,6 +24,8 @@ public class RealtimeAiService : IRealtimeAiService
         string? systemMessage = null,
         ConversationSessionOptions? conversationSessionOptions = null)
     {
+        _logger.Information("Starting to create a conversation session.");
+        
         var realtimeClient = GetRealtimeConversationClient();
         var kernel = Kernel.CreateBuilder().Build(); // TODO: Check if this is needed or can be removed.
 
@@ -44,11 +49,13 @@ public class RealtimeAiService : IRealtimeAiService
 
         // Configure session with defined options.
         await session.ConfigureSessionAsync(conversationSessionOptions, cts.Token);
+        _logger.Information("Session configured successfully.");
 
         if (!string.IsNullOrEmpty(systemMessage))
         {
             await session.AddItemAsync(
                 ConversationItem.CreateSystemMessage([$"{systemMessage}"]), cts.Token);
+            _logger.Information("System message added to session.");
         }
 
         return session;
@@ -75,6 +82,7 @@ public class RealtimeAiService : IRealtimeAiService
         //}
         else
         {
+            _logger.Fatal("Failed to create RealtimeConversationClient. Configuration was not found.");
             throw new Exception("OpenAI/Azure OpenAI configuration was not found.");
         }
     }

@@ -65,7 +65,7 @@ public class MediaStreamController : ControllerBase
 
         string systemMessage =
         """
-        You are wake up call asistant. Your instructions are specifided between markup <PresonlalisedPrompt></PresonlalisedPrompt>. 
+        You are wake-up call assistant. Your instructions are specified between markup <PersonalisedPrompt></PersonalisedPrompt>. 
         Follow the instructions in the conversation you have with the user.
 
         """;

@@ -5,7 +5,7 @@
 // namespace VoiceCallAssistant.Controllers;
 
 // [ApiController]
-// [Route("api/routine")]
+// [Route("api/routine")]   //For testing purposes
 // public class RoutineController : ControllerBase
 // {
 //     private readonly IRepository _repository;
@@ -39,6 +39,6 @@
 //                 ToDos = "default-todos",
 //                 PersonalisedPrompt = "default-prompt"
 //             });
-        
+
 //     }
 // }

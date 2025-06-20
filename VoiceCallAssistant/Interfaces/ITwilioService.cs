@@ -11,16 +11,4 @@ public interface ITwilioService
     public string MakeCall(string toPhoneNumber, string routineId);
     public string ConnectWebhook(string toPhoneNumber);
     public bool ValidateRequest(HttpRequest request);
-
-    public Task ReceiveFrom(
-                WebSocket webSocket,
-                CancellationToken ct,
-                Action<string> setStreamSid,                
-                Action<BinaryData, long> handleAudio,
-                ConcurrentQueue<string> markQueue);
-
-    public Task SendTo(RealtimeConversationSession session,
-        CancellationToken ct,
-        Func<ConversationItemStreamingPartDeltaUpdate, Task> handleAudioDelta,
-        Func<ConversationInputSpeechStartedUpdate, Task> handleSpeechStarted);
 }

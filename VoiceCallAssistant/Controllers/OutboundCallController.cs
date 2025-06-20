@@ -31,23 +31,23 @@ public class OutboundCallController : ControllerBase
     [HttpPost("request", Name = "RequestOutboundCall")]
     public async Task<IActionResult> RequestOutboundCallPost([FromBody]CallRequest request, CancellationToken cancellationToken)
     {
-        _logger.Information("Received outbound call request for RoutineId: {RoutineId}", request.RoutineId);
-
-        if (string.IsNullOrEmpty(request.RoutineId))
-        {
-            _logger.Warning("Routine ID is null or empty in the request.");
-            return BadRequest("Routine ID cannot be null or empty.");
-        }
-
-        var routine = await _repository.GetByIdAsync<Routine>(request.RoutineId, cancellationToken);
-        if (routine == null)
-        {
-            _logger.Warning("Routine with ID {RoutineId} not found in the repository.", request.RoutineId);
-            return NotFound($"Routine with ID {request.RoutineId} not found.");
-        }
-        
         try
         {
+            if (string.IsNullOrEmpty(request.RoutineId))
+            {
+                _logger.Warning("Routine ID is null or empty in the request.");
+                return BadRequest("Routine ID cannot be null or empty.");
+            }
+
+            _logger.Information("Received outbound call request for RoutineId: {RoutineId}", request.RoutineId);
+            
+            var routine = await _repository.GetByIdAsync<Routine>(request.RoutineId, cancellationToken);
+            if (routine == null)
+            {
+                _logger.Warning("Routine with ID {RoutineId} not found in the repository.", request.RoutineId);
+                return NotFound($"Routine with ID {request.RoutineId} not found.");
+            }
+
             _twilioService.CreateClient();
             _logger.Information("Twilio client created successfully.");
 
@@ -55,7 +55,7 @@ public class OutboundCallController : ControllerBase
             if (string.IsNullOrEmpty(callSid))
             {
                 _logger.Error("Failed to initiate outbound call for RoutineId: {RoutineId}", routine.Id);
-                return StatusCode(500, "Failed to initiate outbound call.");
+                throw new ArgumentNullException("Failed to obtain call SID.");
             }
 
             _logger.Information("Outbound call initiated. CallSid: {CallSid}, RoutineId: {RoutineId}", callSid, routine.Id);
@@ -72,36 +72,44 @@ public class OutboundCallController : ControllerBase
     [HttpPost("webhook/{routineId}", Name = "RequestOutboundCallWebhook")]
     public IActionResult RequestOutboundCallWebhookPost()
     {
-        // TODO: Activate validation once deployed
-        // if (!_twilioService.ValidateRequest(this.Request))
-        // {
-        //     _logger.Warrning("Invalid Twilio request signature for RoutineId: {RoutineId}", routineId);
-        //     return Unauthorized("Invalid request signature.");
-        // }
-
-        var request = new TwilioCallRequest
+        try
         {
-            CallStatus = this.Request.Form["CallStatus"]!
-        };
+            // TODO: Activate validation once deployed
+            // if (!_twilioService.ValidateRequest(this.Request))
+            // {
+            //     _logger.Warrning("Invalid Twilio request signature for RoutineId: {RoutineId}", routineId);
+            //     return Unauthorized("Invalid request signature.");
+            // }
 
-        var routineId = this.Request.Path.GetLastItem('/');
-        if (string.IsNullOrEmpty(routineId))
-        {
-            _logger.Warning("Routine ID is null or empty in the webhook request.");
-            return BadRequest("Routine ID cannot be null or empty.");
+            var request = new TwilioCallRequest
+            {
+                CallStatus = this.Request.Form["CallStatus"]!
+            };
+
+            var routineId = this.Request.Path.GetLastItem('/');
+            if (string.IsNullOrEmpty(routineId))
+            {
+                _logger.Warning("Routine ID is null or empty in the webhook request.");
+                return BadRequest("Routine ID cannot be null or empty.");
+            }
+
+            _logger.Information("Received Twilio webhook for RoutineId: {RoutineId}, CallStatus: {CallStatus}", routineId, request.CallStatus);
+
+            if (request.CallStatus == "completed")
+            {
+                _logger.Information("Call for RoutineId: {RoutineId} has completed.", routineId);
+                return NoContent();
+            }
+
+            var htmlResponse = _twilioService.ConnectWebhook(routineId);
+            _logger.Debug("Generated TwiML for RoutineId: {RoutineId}. Response: {Response}", routineId, htmlResponse);
+
+            return Content(htmlResponse, "text/xml");
         }
-
-        _logger.Information("Received Twilio webhook for RoutineId: {RoutineId}, CallStatus: {CallStatus}", routineId, request.CallStatus);
-
-        if (request.CallStatus == "completed")
+        catch (Exception ex)
         {
-            _logger.Information("Call for RoutineId: {RoutineId} has completed.", routineId);
-            return NoContent();
+            _logger.Error(ex, "Failed to create TwiML for webhook.");
+            return StatusCode(500, "Failed to create TwiML.");
         }
-
-        var htmlResponse = _twilioService.ConnectWebhook(routineId);
-        _logger.Debug("Generated TwiML for RoutineId: {RoutineId}. Response: {Response}", routineId, htmlResponse);
-
-        return Content(htmlResponse, "text/xml");
     }
 }

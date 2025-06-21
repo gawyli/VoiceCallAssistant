@@ -71,13 +71,13 @@ public class RealtimeAIService : IRealtimeAIService
         {
             return new RealtimeConversationClient(
                 model: openAIOptions.Model,
-                credential: new ApiKeyCredential(openAIOptions.ApiKey));
+                credential: new ApiKeyCredential(openAIOptions.ApiKey!));
         }
         else if (azureOpenAIOptions is not null && azureOpenAIOptions.IsValid)
         {
             var client = new AzureOpenAIClient(
-                endpoint: new Uri(azureOpenAIOptions.Endpoint),
-                credential: new ApiKeyCredential(azureOpenAIOptions.ApiKey));
+                endpoint: new Uri(azureOpenAIOptions.Endpoint!),
+                credential: new ApiKeyCredential(azureOpenAIOptions.ApiKey!));
 
             return client.GetRealtimeConversationClient(azureOpenAIOptions.DeploymentName);
         }

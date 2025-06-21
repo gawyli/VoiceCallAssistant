@@ -41,31 +41,22 @@ public static class ServiceCollectionRegistration
 
     public static IServiceCollection AddDatabase(this IServiceCollection services, IConfiguration configuration)
     {
-        var cosmosDbConfig = configuration.GetRequiredSection(CosmosDbConfig.SectionName).Get<CosmosDbConfig>();
-        if (cosmosDbConfig == null)
+        var databaseConfig = configuration.GetRequiredSection(DatabaseConfig.SectionName).Get<DatabaseConfig>();
+        if (databaseConfig == null)
         {
-            throw new ConfigurationErrorsException($"Configuration section '{CosmosDbConfig.SectionName}' is missing or invalid.");
+            throw new ConfigurationErrorsException($"Configuration section '{DatabaseConfig.SectionName}' is missing or invalid.");
         }
 
-        services.AddDbContext<CosmosDbContext>(options => options.UseCosmos(
-            cosmosDbConfig.ConnectionString,
-            cosmosDbConfig.Name,
-            options =>
-            {
-                options.ConnectionMode(ConnectionMode.Gateway);
-                options.GatewayModeMaxConnectionLimit(12);
-                /*options.LimitToEndpoint();
-                options.GatewayModeMaxConnectionLimit(32);
-                options.MaxRequestsPerTcpConnection(8);
-                options.MaxTcpConnectionsPerEndpoint(16);
-                options.IdleTcpConnectionTimeout(TimeSpan.FromMinutes(1));
-                options.OpenTcpConnectionTimeout(TimeSpan.FromMinutes(1));
-                options.RequestTimeout(TimeSpan.FromMinutes(1));*/
-            }));
+        services.AddDbContext<AppDbContext>(options => 
+            options.UseCosmos(
+                databaseConfig.ConnectionString,
+                databaseConfig.Name,
+                options =>
+                {
+                    options.ConnectionMode(ConnectionMode.Gateway);
+                    options.GatewayModeMaxConnectionLimit(12);
+                }));
 
-        
-
-       
         return services;
     }
 }

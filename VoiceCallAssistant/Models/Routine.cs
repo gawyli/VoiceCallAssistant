@@ -29,5 +29,4 @@ public class Routine : BaseEntity
     protected Routine()
     {
     }
-
 }

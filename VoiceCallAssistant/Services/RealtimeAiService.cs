@@ -1,4 +1,5 @@
-﻿using Microsoft.Extensions.Configuration;
+﻿using Azure.AI.OpenAI;
+using Microsoft.Extensions.Configuration;
 using Microsoft.SemanticKernel;
 using OpenAI.RealtimeConversation;
 using System.ClientModel;
@@ -8,12 +9,12 @@ using ILogger = Serilog.ILogger;
 
 namespace VoiceCallAssistant.Services;
 
-public class RealtimeAiService : IRealtimeAiService
+public class RealtimeAIService : IRealtimeAIService
 {
     private readonly ILogger _logger;
     private readonly IConfiguration _configuration;
 
-    public RealtimeAiService(ILogger logger, IConfiguration configuration)
+    public RealtimeAIService(ILogger logger, IConfiguration configuration)
     {
         _logger = logger;
         _configuration = configuration;
@@ -64,22 +65,22 @@ public class RealtimeAiService : IRealtimeAiService
     private RealtimeConversationClient GetRealtimeConversationClient()
     {
         var openAIOptions = _configuration.GetSection(OpenAIOptions.SectionName).Get<OpenAIOptions>();
-        //var azureOpenAIOptions = _configuration.GetSection(AzureOpenAIOptions.SectionName).Get<AzureOpenAIOptions>();
+        var azureOpenAIOptions = _configuration.GetSection(AzureOpenAIOptions.SectionName).Get<AzureOpenAIOptions>();
 
         if (openAIOptions is not null && openAIOptions.IsValid)
         {
             return new RealtimeConversationClient(
                 model: openAIOptions.Model,
-                credential: new ApiKeyCredential(openAIOptions.ApiKey));
+                credential: new ApiKeyCredential(openAIOptions.ApiKey!));
         }
-        //else if (azureOpenAIOptions is not null && azureOpenAIOptions.IsValid)
-        //{
-        //    var client = new AzureOpenAIClient(
-        //        endpoint: new Uri(azureOpenAIOptions.Endpoint),
-        //        credential: new ApiKeyCredential(azureOpenAIOptions.ApiKey));
+        else if (azureOpenAIOptions is not null && azureOpenAIOptions.IsValid)
+        {
+            var client = new AzureOpenAIClient(
+                endpoint: new Uri(azureOpenAIOptions.Endpoint!),
+                credential: new ApiKeyCredential(azureOpenAIOptions.ApiKey!));
 
-        //    return client.GetRealtimeConversationClient(azureOpenAIOptions.DeploymentName);
-        //}
+            return client.GetRealtimeConversationClient(azureOpenAIOptions.DeploymentName);
+        }
         else
         {
             _logger.Fatal("Failed to create RealtimeConversationClient. Configuration was not found.");

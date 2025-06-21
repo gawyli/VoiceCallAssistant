@@ -2,7 +2,7 @@
 
 namespace VoiceCallAssistant.Interfaces;
 
-public interface IRealtimeAiService
+public interface IRealtimeAIService
 {
     Task<RealtimeConversationSession> CreateConversationSessionAsync(CancellationTokenSource cts, string? systemMessage = null, ConversationSessionOptions? conversationSessionOptions = null);
 }

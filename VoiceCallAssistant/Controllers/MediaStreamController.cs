@@ -23,10 +23,10 @@ public class MediaStreamController : ControllerBase
     private readonly ILogger _logger;
     private readonly IRepository _repository;
     private readonly ITwilioService _twilioService;
-    private readonly IRealtimeAiService _realtimeAiService;
+    private readonly IRealtimeAIService _realtimeAiService;
     private readonly IConfiguration _configuration;
 
-    public MediaStreamController(ILogger logger, IRepository repository, ITwilioService twilioService, IRealtimeAiService realtimeAiService, IConfiguration configuration)
+    public MediaStreamController(ILogger logger, IRepository repository, ITwilioService twilioService, IRealtimeAIService realtimeAiService, IConfiguration configuration)
     {
         _logger = logger;
         _repository = repository;

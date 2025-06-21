@@ -25,13 +25,13 @@ public class EfRepository : IRepository
         return await GetDbContext<T>().Set<T>().ToListAsync(cancellationToken);
     }
 
-    public async Task<T> AddAsync<T>(T entity, CancellationToken cancellationToken) where T : BaseEntity//, IAggregateRoot
+    public async Task<T> AddAsync<T>(T entity, CancellationToken cancellationToken) where T : BaseEntity
     {
         if (string.IsNullOrEmpty(entity.Id))
         {
             entity.Id = Guid.NewGuid().ToString();
         }
-        //entity.OnCreated(_clock?.CurrentDateTime);
+
         await GetDbContext<T>().Set<T>().AddAsync(entity, cancellationToken);
         await GetDbContext<T>().SaveChangesAsync(cancellationToken);
 
@@ -60,51 +60,6 @@ public class EfRepository : IRepository
     {
         GetDbContext<T>().Entry(entity).State = EntityState.Detached;
     }
-
-    //public async Task<T?> GetBySpecAsync<T, TSpec>(TSpec specification, CancellationToken cancellationToken) where TSpec : ISingleResultSpecification, ISpecification<T> where T : BaseEntity
-    //{
-    //    var specificationResult = ApplySpecification(specification);
-    //    return await specificationResult.FirstOrDefaultAsync(cancellationToken);
-    //}
-
-    //public async Task<TResult?> GetBySpecAsync<T, TResult>(ISpecification<T, TResult> specification, CancellationToken cancellationToken) where T : BaseEntity
-    //{
-    //    return await ApplySpecification(specification).FirstOrDefaultAsync(cancellationToken);
-    //}
-
-    //public async Task<List<T>> ListAsync<T>(ISpecification<T> specification, CancellationToken cancellationToken) where T : BaseEntity
-    //{
-    //    var specificationResult = ApplySpecification(specification);
-    //    return await specificationResult.ToListAsync(cancellationToken);
-    //}
-
-    /// <inheritdoc/>
-    //public Task<int> CountAsync<T>(ISpecification<T> specification, CancellationToken cancellationToken) where T : BaseEntity
-    //{
-    //    return ApplySpecification(specification, true).CountAsync(cancellationToken);
-    //}
-
-    /// <inheritdoc/>
-
-    //private IQueryable<T> ApplySpecification<T>(ISpecification<T> specification, bool evaluateCriteriaOnly = false) where T : BaseEntity
-    //{
-    //    return SpecificationEvaluator.Default.GetQuery(GetDbContext<T>().Set<T>().AsQueryable(), specification, evaluateCriteriaOnly);
-    //}
-
-    //private IQueryable<TResult> ApplySpecification<T, TResult>(ISpecification<T, TResult> specification) where T : BaseEntity
-    //{
-    //    if (specification is null)
-    //    {
-    //        throw new ArgumentNullException("Specification is required");
-    //    }
-
-    //    if (specification.Selector is null)
-    //    {
-    //        throw new SelectorNotFoundException();
-    //    }
-
-    //    return SpecificationEvaluator.Default.GetQuery(GetDbContext<T>().Set<T>().AsQueryable(), specification);
-    //}
 
     private DbContext GetDbContext<T>()
     {

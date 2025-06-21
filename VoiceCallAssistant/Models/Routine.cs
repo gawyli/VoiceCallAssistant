@@ -1,12 +1,16 @@
-﻿namespace VoiceCallAssistant.Models;
+﻿using System.ComponentModel.DataAnnotations;
+
+namespace VoiceCallAssistant.Models;
 
 public class Routine : BaseEntity
 {
     public string UserProfileId { get; set; } = null!;
+    [Required]
     public string Username { get; set; } = null!;
     public string Name { get; set; } = null!;
     public TimeOnly ScheduledTime { get; set; }
     public bool IsMonFri { get; set; }
+    [Required]
     public string PhoneNumber { get; set; } = null!;
     public Preferences Preferences { get; set; } = null!;
 

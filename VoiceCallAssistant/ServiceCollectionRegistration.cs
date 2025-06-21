@@ -33,7 +33,7 @@ public static class ServiceCollectionRegistration
     public static IServiceCollection AddServices(this IServiceCollection services)
     {
         services.AddScoped<ITwilioService, TwilioService>();
-        services.AddScoped<IRealtimeAiService, RealtimeAiService>();
+        services.AddScoped<IRealtimeAIService, RealtimeAIService>();
         services.AddScoped<IRepository, EfRepository>();
 
         return services;

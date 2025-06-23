@@ -37,7 +37,7 @@ Twilio requres public address for webhook callback. To expose an application to 
 	- From the Right-Click Menu click on "Manage User Secrets"
 	- Copy and paste configuration secrets into the "secrets.json"
 	
-	```
+	```json
 	{
 		"TwilioService": {
 			"AccountSid": "xxx",
@@ -59,8 +59,30 @@ Twilio requres public address for webhook callback. To expose an application to 
 8. Replace "xxx" with your secrets.
 	- For the WebhookHost you have to paste the codespace URL with the port 5055.
 	- Your URL should look like this: `abc-abc-abc-5055.app.github.dev`, notice port 5055 before `.app.github.dev`
-9. Navigate to `appsettings.Development.json` and change Database Name to the name set in CosmosDb 
-10. Go to
+9. Navigate to `appsettings.Development.json` and change Database Name to the database name set in CosmosDb 
+10. Open Run and Debug tab on left side, click the green button then from dropdown list select `C#` and select `C#: VoiceCallAssistant [http]`
+	- It is important to have a code file opened e.g. `Program.cs` and then press the `Run and Debug` button
+11. Wait until application opens. Once everything is set up, navigate in the terminal to the `Ports` tab (Should be little blue circle with a number in it). In the ports tab, you should see a one record with the `5055` port and your github codespaces address (It's your public address `This public address is used for WebhookHost in the appsettings. The address includes port`).
+12. Right click on the `Private` value in the Visibility column and in the menu hover over `Port Visibility` and select `Public`.
+13. Copy your public address and navigate to `https://your-github-codespaces-public-address-5055.app.github.dev/swagger/index.html`
+14. In the swagger use `/api/routine/create` to create routine
+	```json
+	{
+	"username": "TestUsername",
+	"name": "Tesths",
+	"scheduledTime": "08:00",
+	"isMonFri": true,
+	"phoneNumber": "+441934877388",
+	"preferences": {
+		"topicOfInterest": "Not in use",
+		"toDos": "Not in use",
+		"personalisedPrompt": "Welcome me with a morning affirmation for better day"
+		}
+	}
+	```
+15. Once you created routine, copy the `Id` from the bottom of the response body.
+16. Navigate to `/api/call/request` endpoint and use the copied `Id` for `RoutineId` to request a call. 
+17. You should receive a mobile call on the specified number.
 
 #### Option 2. ngrok
 

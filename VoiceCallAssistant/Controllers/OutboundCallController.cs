@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Identity.Web.Resource;
 using ILogger = Serilog.ILogger;
+using Microsoft.AspNetCore.Http.Extensions;
 
 namespace VoiceCallAssistant.Controllers;
 
@@ -27,7 +28,8 @@ public class OutboundCallController : ControllerBase
         _repository = repository;
     }
 
-    //[RequiredScope("call.request")]
+    //[Authorize]
+    //[RequiredScopeOrAppPermission(AcceptedAppPermission = new[] { "Request.Call" })]
     [HttpPost("request", Name = "RequestOutboundCall")]
     public async Task<IActionResult> RequestOutboundCallPost([FromBody]CallRequest request, CancellationToken cancellationToken)
     {
@@ -70,23 +72,26 @@ public class OutboundCallController : ControllerBase
     }
 
     [HttpPost("webhook/{routineId}", Name = "RequestOutboundCallWebhook")]
-    public IActionResult RequestOutboundCallWebhookPost()
+    public async Task<IActionResult> RequestOutboundCallWebhookPost()
     {
         try
         {
-            // TODO: Activate validation once deployed
-            // if (!_twilioService.ValidateRequest(this.Request))
-            // {
-            //     _logger.Warrning("Invalid Twilio request signature for RoutineId: {RoutineId}", routineId);
-            //     return Unauthorized("Invalid request signature.");
-            // }
+            var form = await HttpContext.Request.ReadFormAsync();
+            var headers = this.Request.Headers;
+            var url = this.Request.GetDisplayUrl();
+            var routineId = this.Request.Path.GetLastItem('/');
+
+            if (!_twilioService.ValidateRequest(url, headers, form))
+            {
+                _logger.Warning("Invalid Twilio request signature for RoutineId: {RoutineId}", routineId);
+                return Unauthorized("Invalid request signature.");
+            }
 
             var request = new TwilioCallRequest
             {
-                CallStatus = this.Request.Form["CallStatus"]!
+                CallStatus = form["CallStatus"]!
             };
 
-            var routineId = this.Request.Path.GetLastItem('/');
             if (string.IsNullOrEmpty(routineId))
             {
                 _logger.Warning("Routine ID is null or empty in the webhook request.");

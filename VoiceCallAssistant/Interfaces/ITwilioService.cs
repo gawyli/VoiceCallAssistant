@@ -10,5 +10,5 @@ public interface ITwilioService
     public void CreateClient();
     public string MakeCall(string toPhoneNumber, string routineId);
     public string ConnectWebhook(string toPhoneNumber);
-    public bool ValidateRequest(HttpRequest request);
+    public bool ValidateRequest(string url, IHeaderDictionary headers, IFormCollection form);
 }

@@ -54,12 +54,11 @@ public class TwilioService : ITwilioService
         Console.WriteLine("Client Created");
     }
 
-    public bool ValidateRequest(HttpRequest request)
+    public bool ValidateRequest(string url, IHeaderDictionary headers, IFormCollection form)
     {
         // TODO: validate websocket
-        var url = request.GetDisplayUrl();
-        var signature = request.Headers["X-Twilio-Signature"].ToString();
-        var body = request.Form.OrderBy(kvp => kvp.Key).ToDictionary(kvp => kvp.Key, kvp => kvp.Value.ToString());
+        var signature = headers["X-Twilio-Signature"].ToString();
+        var body = form.OrderBy(kvp => kvp.Key).ToDictionary(kvp => kvp.Key, kvp => kvp.Value.ToString());
         //var parameters = request.QueryString.ToString();
 
         try

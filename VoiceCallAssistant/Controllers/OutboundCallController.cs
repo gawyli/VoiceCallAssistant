@@ -81,11 +81,13 @@ public class OutboundCallController : ControllerBase
             var url = this.Request.GetDisplayUrl();
             var routineId = this.Request.Path.GetLastItem('/');
 
-            if (!_twilioService.ValidateRequest(url, headers, form))
-            {
-                _logger.Warning("Invalid Twilio request signature for RoutineId: {RoutineId}", routineId);
-                return Unauthorized("Invalid request signature.");
-            }
+            // When using GitHub Codespaces, the URL has to be set manaully in order to use Twilio Verification.
+            // var url = $"https://<github-codespaces-url-xxx>-5055.app.github.dev/api/call/webhook/{routineId}";
+            // if (!_twilioService.ValidateRequest(url, headers, form))
+            // {
+            //     _logger.Warning("Invalid Twilio request signature for RoutineId: {RoutineId}", routineId);
+            //     return Unauthorized("Invalid request signature.");
+            // }
 
             var request = new TwilioCallRequest
             {

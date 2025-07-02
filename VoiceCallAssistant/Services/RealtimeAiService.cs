@@ -27,8 +27,7 @@ public class RealtimeAIService : IRealtimeAIService
     {
         _logger.Information("Starting to create a conversation session.");
         
-        var realtimeClient = GetRealtimeConversationClient();
-        var kernel = Kernel.CreateBuilder().Build(); // TODO: Check if this is needed or can be removed.
+        var realtimeClient = GetRealtimeConversationClient();        
 
         RealtimeConversationSession session = await realtimeClient.StartConversationSessionAsync(cts.Token);
 
@@ -36,7 +35,7 @@ public class RealtimeAIService : IRealtimeAIService
         {
             conversationSessionOptions = new()
             {
-                Voice = ConversationVoice.Ash,
+                Voice = ConversationVoice.Coral,
                 InputAudioFormat = ConversationAudioFormat.G711Ulaw,
                 OutputAudioFormat = ConversationAudioFormat.G711Ulaw,
                 InputTranscriptionOptions = new()

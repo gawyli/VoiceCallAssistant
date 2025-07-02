@@ -1,17 +1,10 @@
-﻿using OpenAI.RealtimeConversation;
-using System.Collections.Concurrent;
-using System.Net.WebSockets;
-using System.Text;
-using System.Text.Json;
-using Twilio;
+﻿using Twilio;
 using Twilio.Rest.Api.V2010.Account;
 using Twilio.TwiML;
 using Twilio.TwiML.Voice;
 using Twilio.Security;
 using VoiceCallAssistant.Interfaces;
-using Task = System.Threading.Tasks.Task;
-using Microsoft.AspNetCore.Http.Extensions;
-using System.Security.Policy;
+
 
 namespace VoiceCallAssistant.Services;
 

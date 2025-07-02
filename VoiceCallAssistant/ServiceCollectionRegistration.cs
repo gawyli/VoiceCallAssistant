@@ -32,10 +32,11 @@ public static class ServiceCollectionRegistration
     }
     public static IServiceCollection AddServices(this IServiceCollection services)
     {
-        services.AddScoped<ITwilioService, TwilioService>();
-        services.AddScoped<IRealtimeAIService, RealtimeAIService>();
+        services.AddSingleton<ITwilioService, TwilioService>();
+        services.AddSingleton<IRealtimeAIService, RealtimeAIService>();
         services.AddScoped<IRepository, EfRepository>();
-
+        services.AddScoped<IVoiceCallService, VoiceCallService>();
+        
         return services;
     }
 

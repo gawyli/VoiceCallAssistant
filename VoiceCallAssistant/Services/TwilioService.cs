@@ -1,9 +1,17 @@
-﻿using Twilio;
+﻿using System.Net.WebSockets;
+using System.Runtime.CompilerServices;
+using System.Text;
+using System.Text.Json;
+using Twilio;
 using Twilio.Rest.Api.V2010.Account;
 using Twilio.TwiML;
 using Twilio.TwiML.Voice;
 using Twilio.Security;
 using VoiceCallAssistant.Interfaces;
+using VoiceCallAssistant.Models;
+using VoiceCallAssistant.Models.Events;
+using ILogger = Serilog.ILogger;
+using Task = System.Threading.Tasks.Task;
 
 
 namespace VoiceCallAssistant.Services;
@@ -25,8 +33,9 @@ public class TwilioService : ITwilioService
     private readonly string _callerId;
     private readonly string _webhookHost;
     private readonly int _timeCallLimit;
+    private readonly ILogger _logger;
 
-    public TwilioService(IConfiguration configuration)
+    public TwilioService(ILogger logger, IConfiguration configuration)
     {
         var twilioConfig = configuration.GetRequiredSection("TwilioService").Get<TwilioServiceConfig>();
         if (twilioConfig == null)
@@ -39,6 +48,7 @@ public class TwilioService : ITwilioService
         _callerId = twilioConfig.CallerId;
         _webhookHost = twilioConfig.WebhookHost;
         _timeCallLimit = twilioConfig.TimeCallLimit;
+        _logger = logger;
     }
 
     public void CreateClient()
@@ -109,5 +119,160 @@ public class TwilioService : ITwilioService
 
         Console.WriteLine($"Returning TwiML for the outbound call");
         return response.ToString();
+    }
+
+    public async Task ClearQueue(WebSocket webSocket, string streamSid, CancellationToken cancellationToken)
+    {
+        if (webSocket.State != WebSocketState.Open)
+        {
+            _logger.Error("WebSocket is not open. Cannot send audio.");
+            throw new InvalidOperationException("WebSocket is not open.");
+        }
+
+        var clearObj = new { @event = "clear", streamSid = streamSid };
+        await webSocket.SendAsync(
+            Encoding.UTF8.GetBytes(JsonSerializer.Serialize(clearObj)),
+            WebSocketMessageType.Text,
+            true,
+            cancellationToken);
+    }
+
+    public async Task SendInputAudioAsync(WebSocket webSocket, string payloadB64, CallState state, CancellationToken cancellationToken)
+    {
+        if (webSocket.State != WebSocketState.Open)
+        {
+            _logger.Error("WebSocket is not open. Cannot send audio.");
+            throw new InvalidOperationException("WebSocket is not open.");
+        }
+
+        var mediaObj = new
+        {
+            @event = "media",
+            streamSid = state.StreamSid,
+            media = new { payload = payloadB64 }
+        };
+        await webSocket.SendAsync(
+            Encoding.UTF8.GetBytes(JsonSerializer.Serialize(mediaObj)),
+            WebSocketMessageType.Text, true, cancellationToken);
+
+        state.MarkQueue.Enqueue(state.LastAssistantId!);
+
+        var markObj = new
+        {
+            @event = "mark",
+            streamSid = state.StreamSid,
+            mark = new { name = state.LastAssistantId }
+        };
+        await webSocket.SendAsync(
+            Encoding.UTF8.GetBytes(JsonSerializer.Serialize(markObj)),
+            WebSocketMessageType.Text, true, cancellationToken);
+    }
+
+    public async IAsyncEnumerable<TwilioEvent> ReceiveUpdatesAsync(WebSocket webSocket, [EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        var buffer = new byte[4 * 1024];  
+
+        while (webSocket.State == WebSocketState.Open && !cancellationToken.IsCancellationRequested)
+        {
+            var result = await webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), cancellationToken);
+            if (result.MessageType == WebSocketMessageType.Close)
+            {
+                _logger.Information("WebSocket closed by client.");
+                await CloseTwilio(webSocket, cancellationToken);
+            }
+
+            using var memoryStream = new MemoryStream(buffer, 0, result.Count);
+
+            yield return await ReceiveUpdateAsync(memoryStream, cancellationToken);
+        }
+    }
+
+    private async Task<TwilioEvent> ReceiveUpdateAsync(
+    MemoryStream stream,
+    CancellationToken cancellationToken)
+    {
+        var doc = await JsonDocument.ParseAsync(stream, default, cancellationToken);
+        var root = doc.RootElement;
+
+        root.TryGetProperty("event", out var eventProp);
+        var eventType = eventProp.GetString();
+
+        switch (eventType)
+        {
+            case "start":
+                _logger.Debug("Stream start event received");
+                return HandleStartEvent(root);
+
+            case "media":
+                return HandleMediaEvent(root);
+
+            case "mark":
+                return new MarkEvent(eventType);
+
+            case "stop":
+                _logger.Debug("Stream stop event received.");
+                return new StopEvent();
+
+            default:
+                return new ConnectedEvent();                
+        }
+    }
+
+    private StartEvent HandleStartEvent(
+        JsonElement root)
+    {
+        var streamSid = root
+                .GetProperty("start")
+                .GetProperty("streamSid")
+                .GetString()!;
+
+        _logger.Information("Stream started with SID: {StreamSid}", streamSid);
+
+        return new StartEvent(streamSid);
+    }
+
+    private MediaEvent HandleMediaEvent(
+        JsonElement root)
+    {
+        var payloadB64 = root
+            .GetProperty("media")
+            .GetProperty("payload")
+            .GetString()!;
+
+        var timestampStr = root
+            .GetProperty("media")
+            .GetProperty("timestamp")
+            .GetString()!;
+
+        var audioBytes = Convert.FromBase64String(payloadB64);
+        var audioBinary = new BinaryData(audioBytes);
+        var timestamp = Convert.ToDouble(timestampStr);        
+
+        return new MediaEvent(audioBinary, TimeSpan.FromMilliseconds(timestamp));
+    }
+
+    public async Task CloseTwilio(WebSocket webSocket,
+        CancellationToken cancellationToken)
+    {
+        if (webSocket.State is WebSocketState.Open or WebSocketState.CloseReceived)
+        {
+            _logger.Debug("Closing Twilio WebSocket connection.");
+            await webSocket.CloseOutputAsync(
+                WebSocketCloseStatus.NormalClosure,
+                "NormalClosure",
+                cancellationToken);
+        }
+    }
+    public async Task CloseTwilioWithError(WebSocket webSocket, string message,
+        CancellationToken cancellationToken)
+    {
+        if (webSocket.State is WebSocketState.Open or WebSocketState.CloseReceived)
+        {
+            _logger.Warning("Closing WebSocket with error: {Message}", message);
+            await webSocket.CloseAsync(
+                    WebSocketCloseStatus.InternalServerError,
+                    message,
+                    cancellationToken);
+        }
     }
 }

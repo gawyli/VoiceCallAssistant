@@ -1,14 +1,12 @@
-﻿using Twilio;
+﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http.Extensions;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Identity.Web.Resource;
 using VoiceCallAssistant.Interfaces;
-using Twilio.TwiML.Voice;
 using VoiceCallAssistant.Models;
 using VoiceCallAssistant.Utilities;
-using Microsoft.AspNetCore.Http.HttpResults;
-using Microsoft.AspNetCore.Authorization;
-using Microsoft.Identity.Web.Resource;
 using ILogger = Serilog.ILogger;
-using Microsoft.AspNetCore.Http.Extensions;
+
 
 namespace VoiceCallAssistant.Controllers;
 

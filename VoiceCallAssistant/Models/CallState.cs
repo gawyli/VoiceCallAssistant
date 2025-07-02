@@ -1,7 +1,7 @@
 ﻿using System.Collections.Concurrent;
 
 namespace VoiceCallAssistant.Models;
-internal class CallState
+public class CallState
 {
     public string? StreamSid { get; set; }
     public TimeSpan StreamDurationTimestamp { get; set; }
@@ -10,7 +10,7 @@ internal class CallState
     public TimeSpan? ResponseStartTs { get; set; }
     public ConcurrentQueue<string> MarkQueue { get; set; } = null!;
 
-    internal void Clear()
+    public void Clear()
     {
         LastAssistantId = null;
         ContentPartsIndex = null;

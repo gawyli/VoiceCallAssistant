@@ -8,7 +8,7 @@ public class CallState
     public string? LastAssistantId { get; set; }
     public int? ContentPartsIndex { get; set; }
     public TimeSpan? ResponseStartTs { get; set; }
-    public ConcurrentQueue<string> MarkQueue { get; set; } = null!;
+    public ConcurrentQueue<string> MarkQueue { get; set; } = new ConcurrentQueue<string>();
 
     public void Clear()
     {

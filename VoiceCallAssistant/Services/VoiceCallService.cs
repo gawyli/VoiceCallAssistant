@@ -18,79 +18,50 @@ Follow the instructions in the conversation you have with the user.
 """;
 
     private readonly ILogger _logger;
-    private readonly IRepository _repository;
     private readonly ITwilioService _twilioService;
     private readonly IRealtimeAIService _realtimeAIService;
 
-    public VoiceCallService(ILogger logger, IRepository repository, ITwilioService twilioService, IRealtimeAIService realtimeAIService)
+    public VoiceCallService(ILogger logger, ITwilioService twilioService, IRealtimeAIService realtimeAIService)
     {
         _logger = logger;
-        _repository = repository;
         _twilioService = twilioService;
         _realtimeAIService = realtimeAIService;
     }
 
-        public async Task OrchestrateAsync(WebSocket websocket, string routineId, CancellationTokenSource cancellationTokenSource)
+    public async Task<RealtimeConversationSession> CreateConversationSession(string userPrompt, CancellationTokenSource cancellationTokenSource)
     {
-        var cancellationToken = cancellationTokenSource.Token;
-
-        var routine = await _repository.GetByIdAsync<Routine>(routineId, cancellationToken);
-        if (routine == null)
-        {
-            _logger.Warning("Routine not found for Routine ID: {RoutineId}", routineId);
-            return;
-        }
-
-        // TODO: Add Interests and Tasks
-        var userPrompt = $"<PersonalisedPrompt> {routine.Preferences.PersonalisedPrompt} </PersonalisedPrompt>";
-
-        using var session = await _realtimeAIService.CreateConversationSessionAsync(cancellationTokenSource, systemMessage + userPrompt);
+        var session = await _realtimeAIService.CreateConversationSessionAsync(cancellationTokenSource, systemMessage + userPrompt);
         _logger.Information("Conversation session started.");
 
-        await OrchestrateWebSockets(websocket, session, cancellationTokenSource);
-
-        return;
+        return session;
     }
 
-    private async Task OrchestrateWebSockets(
-        WebSocket webSocket,
-        RealtimeConversationSession session,
-        CancellationTokenSource cancellationTokenSource)
+    public async Task OrchestrateAsync(WebSocket webSocket1, RealtimeConversationSession webSocket2, CancellationTokenSource cancellationTokenSource)
     {
-
-        var state = new CallState
-        {
-            StreamSid = null,
-            StreamDurationTimestamp = new TimeSpan(),
-            LastAssistantId = null,
-            ContentPartsIndex = null,
-            ResponseStartTs = null,
-            MarkQueue = new ConcurrentQueue<string>()
-        };
-
         try
         {
-            var twilioToRealtimeTask = ProcessIncomingMessages(webSocket, session, state, cancellationTokenSource.Token);
-            var realtimeToTwilioTask = ProcessOutgoingMessages(webSocket, session, state, cancellationTokenSource.Token);
+            var state = new CallState();
 
-            var finished = await Task.WhenAny(twilioToRealtimeTask, realtimeToTwilioTask); 
-            await CloseWebSockets(webSocket, session, cancellationTokenSource.Token);
+            var incomingMessagesTask = ExchangeIncomingMessages(webSocket1, webSocket2, state, cancellationTokenSource.Token);
+            var outgoingMessagesTask = ExchangeOutgoingMessages(webSocket1, webSocket2, state, cancellationTokenSource.Token);
+
+            await Task.WhenAny(incomingMessagesTask, outgoingMessagesTask);
+            await CloseWebSockets(webSocket1, webSocket2, cancellationTokenSource.Token);
 
             cancellationTokenSource.CancelAfter(TimeSpan.FromSeconds(5));   // Allow time for graceful shutdown
 
-            await Task.WhenAll(twilioToRealtimeTask, realtimeToTwilioTask); // Task.WhenAny does not await the other task.
-            await CloseWebSockets(webSocket, session, cancellationTokenSource.Token);
+            await Task.WhenAll(incomingMessagesTask, outgoingMessagesTask); // Task.WhenAny does not await the other task.
+            await CloseWebSockets(webSocket1, webSocket2, cancellationTokenSource.Token);
         }
         catch (Exception ex)
         {
             _logger.Error(ex, "Error in WebSocket processing");
-            await CloseWebSocketsWithError(webSocket, session, "Internal server error occurred", CancellationToken.None);
+            await CloseWebSocketsWithError(webSocket1, webSocket2, "Internal server error occurred", CancellationToken.None);
             throw;
         }
-
     }
 
-    private async Task ProcessIncomingMessages(
+    private async Task ExchangeIncomingMessages(
         WebSocket webSocket,
         RealtimeConversationSession session,
         CallState state,
@@ -141,7 +112,7 @@ Follow the instructions in the conversation you have with the user.
 
     }
 
-    private async Task ProcessOutgoingMessages(
+    private async Task ExchangeOutgoingMessages(
         WebSocket webSocket,
         RealtimeConversationSession session,
         CallState state,

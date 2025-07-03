@@ -17,11 +17,13 @@ public class MediaStreamController : ControllerBase
 {
     private readonly ILogger _logger;
     private readonly IVoiceCallService _voiceCallService;
+    private readonly IRoutineService _routineService;
 
-    public MediaStreamController(ILogger logger, IVoiceCallService voiceCallService)
+    public MediaStreamController(ILogger logger, IVoiceCallService voiceCallService, IRoutineService routineService)
     {
         _logger = logger;
         _voiceCallService = voiceCallService;
+        _routineService = routineService;
 
     }
 
@@ -52,11 +54,21 @@ public class MediaStreamController : ControllerBase
                 return;
             }  
 
+            var routine = await _routineService.GetRoutineByIdAsync(routineId, cancellationToken);
+            if (routine == null)
+            {
+                _logger.Warning("Routine not found for Routine ID: {RoutineId}", routineId);
+                return;
+            }
+            // TODO: Add Interests and Tasks
+            var userPrompt = $"<PersonalisedPrompt> {routine.Preferences.PersonalisedPrompt} </PersonalisedPrompt>";
+
             using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            using var webSocket = await HttpContext.WebSockets.AcceptWebSocketAsync();
+            using var realtimeSocket = await _voiceCallService.CreateConversationSession(userPrompt, linkedCts);
+            using var twilioSocket = await HttpContext.WebSockets.AcceptWebSocketAsync();
             _logger.Information("WebSocket connection established.");
 
-            await _voiceCallService.OrchestrateAsync(webSocket, routineId, linkedCts);
+            await _voiceCallService.OrchestrateAsync(twilioSocket, realtimeSocket, linkedCts);
         }
         catch (Exception ex)
         {

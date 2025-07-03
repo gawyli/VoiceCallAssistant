@@ -35,6 +35,7 @@ public static class ServiceCollectionRegistration
         services.AddSingleton<ITwilioService, TwilioService>();
         services.AddSingleton<IRealtimeAIService, RealtimeAIService>();
         services.AddScoped<IRepository, EfRepository>();
+        services.AddScoped<IRoutineService, RoutineService>();
         services.AddScoped<IVoiceCallService, VoiceCallService>();
         
         return services;

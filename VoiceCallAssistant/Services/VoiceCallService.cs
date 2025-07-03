@@ -28,7 +28,9 @@ Follow the instructions in the conversation you have with the user.
         _realtimeAIService = realtimeAIService;
     }
 
-    public async Task<RealtimeConversationSession> CreateConversationSession(string userPrompt, CancellationTokenSource cancellationTokenSource)
+    public async Task<RealtimeConversationSession> CreateConversationSession(
+        string userPrompt,
+        CancellationTokenSource cancellationTokenSource)
     {
         var session = await _realtimeAIService.CreateConversationSessionAsync(cancellationTokenSource, systemMessage + userPrompt);
         _logger.Information("Conversation session started.");
@@ -36,7 +38,10 @@ Follow the instructions in the conversation you have with the user.
         return session;
     }
 
-    public async Task OrchestrateAsync(WebSocket webSocket1, RealtimeConversationSession webSocket2, CancellationTokenSource cancellationTokenSource)
+    public async Task OrchestrateExchangeAsync(
+        WebSocket webSocket1,
+        RealtimeConversationSession webSocket2,
+        CancellationTokenSource cancellationTokenSource)
     {
         try
         {
@@ -71,10 +76,10 @@ Follow the instructions in the conversation you have with the user.
         {
             await foreach (TwilioEvent twilioEvent in _twilioService.ReceiveUpdatesAsync(webSocket, cancellationToken))
             {
-                if (webSocket.State != WebSocketState.Open || cancellationToken.IsCancellationRequested)
+                if (session.WebSocket.State != WebSocketState.Open || cancellationToken.IsCancellationRequested)
                 {
                     _logger.Information("Cancellation requested, stopping incoming message processing.");
-                    await CloseRealtime(session, cancellationToken);
+                    await _realtimeAIService.CloseRealtime(session, cancellationToken);
 
                     break;
                 }
@@ -124,7 +129,8 @@ Follow the instructions in the conversation you have with the user.
             {
                 if (webSocket.State != WebSocketState.Open || cancellationToken.IsCancellationRequested)
                 {
-                    await CloseRealtime(session, cancellationToken);
+                    _logger.Information("Cancellation requested, stopping outgoing message processing.");
+                    await _realtimeAIService.CloseRealtime(session, cancellationToken);
                     break;
                 }
 
@@ -138,7 +144,7 @@ Follow the instructions in the conversation you have with the user.
 
                 if (update is ConversationInputSpeechStartedUpdate speechStartedUpdate)
                 {
-                    _logger.Debug("Speech detection started at {Time}", speechStartedUpdate.AudioStartTime);
+                    //_logger.Debug("Speech detection started at {Time}", speechStartedUpdate.AudioStartTime);
 
                     if (state.MarkQueue.Any() && state.ResponseStartTs.HasValue && state.LastAssistantId != null)
                     {
@@ -160,7 +166,7 @@ Follow the instructions in the conversation you have with the user.
 
                 if (update is ConversationInputSpeechFinishedUpdate speechFinishedUpdate)
                 {
-                    _logger.Debug("Speech detection ended at {Time}", speechFinishedUpdate.AudioEndTime);
+                    //_logger.Debug("Speech detection ended at {Time}", speechFinishedUpdate.AudioEndTime);
                     state.ResponseStartTs = speechFinishedUpdate.AudioEndTime;
 
                     continue;
@@ -210,15 +216,7 @@ Follow the instructions in the conversation you have with the user.
         CancellationToken cancellationToken)
     {
         await _twilioService.CloseTwilioWithError(webSocket, message, cancellationToken);
-
-        if (session.WebSocket.State is WebSocketState.Open or WebSocketState.CloseReceived)
-        {
-            _logger.Warning("Closing WebSocket with error: {Message}", message);
-            await session.WebSocket.CloseAsync(
-                    WebSocketCloseStatus.InternalServerError,
-                    message,
-                    cancellationToken);
-        }
+        await _realtimeAIService.CloseRealtimeWithError(session, message, cancellationToken);
     }
 
     private async Task CloseWebSockets(WebSocket webSocket,
@@ -226,20 +224,7 @@ Follow the instructions in the conversation you have with the user.
         CancellationToken cancellationToken)
     {
         await _twilioService.CloseTwilio(webSocket, cancellationToken);
-        await CloseRealtime(session, cancellationToken);
-    }
-
-    private async Task CloseRealtime(RealtimeConversationSession session,
-        CancellationToken cancellationToken)
-    {
-        if (session.WebSocket.State is WebSocketState.Open or WebSocketState.CloseReceived)
-        {
-            _logger.Debug("Closing Realtime Conversation Session WebSocket connection.");
-            await session.WebSocket.CloseOutputAsync(
-                WebSocketCloseStatus.NormalClosure,
-                "NormalClosure",
-                cancellationToken);
-        }
+        await _realtimeAIService.CloseRealtime(session, cancellationToken);
     }
 }
 

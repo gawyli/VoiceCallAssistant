@@ -68,7 +68,7 @@ public class MediaStreamController : ControllerBase
             using var twilioSocket = await HttpContext.WebSockets.AcceptWebSocketAsync();
             _logger.Information("WebSocket connection established.");
 
-            await _voiceCallService.OrchestrateAsync(twilioSocket, realtimeSocket, linkedCts);
+            await _voiceCallService.OrchestrateExchangeAsync(twilioSocket, realtimeSocket, linkedCts);
         }
         catch (Exception ex)
         {

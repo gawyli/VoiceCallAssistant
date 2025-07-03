@@ -2,6 +2,7 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.SemanticKernel;
 using OpenAI.RealtimeConversation;
+using System.Net.WebSockets;
 using System.ClientModel;
 using VoiceCallAssistant.Interfaces;
 using VoiceCallAssistant.Models;
@@ -43,7 +44,7 @@ public class RealtimeAIService : IRealtimeAIService
                     Model = "whisper-1"
                 }, 
                 TurnDetectionOptions = ConversationTurnDetectionOptions.CreateServerVoiceActivityTurnDetectionOptions(
-                    silenceDuration: new TimeSpan(0,0,0,0,500))
+                    silenceDuration: new TimeSpan(0,0,0,0,400))
             };
         } 
 
@@ -61,6 +62,31 @@ public class RealtimeAIService : IRealtimeAIService
         return session;
     }
 
+    public async Task CloseRealtime(RealtimeConversationSession session,
+        CancellationToken cancellationToken)
+    {
+        if (session.WebSocket.State is WebSocketState.Open or WebSocketState.CloseReceived)
+        {
+            _logger.Debug("Closing Realtime Conversation Session WebSocket connection.");
+            await session.WebSocket.CloseOutputAsync(
+                WebSocketCloseStatus.NormalClosure,
+                "NormalClosure",
+                cancellationToken);
+        }
+    }
+    public async Task CloseRealtimeWithError(RealtimeConversationSession session,
+        string message,
+        CancellationToken cancellationToken)
+    {
+        if (session.WebSocket.State is WebSocketState.Open or WebSocketState.CloseReceived)
+        {
+            _logger.Warning("Closing WebSocket with error: {Message}", message);
+            await session.WebSocket.CloseAsync(
+                    WebSocketCloseStatus.InternalServerError,
+                    message,
+                    cancellationToken);
+        }
+    }
     private RealtimeConversationClient GetRealtimeConversationClient()
     {
         var openAIOptions = _configuration.GetSection(OpenAIOptions.SectionName).Get<OpenAIOptions>();

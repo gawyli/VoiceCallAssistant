@@ -1,13 +1,26 @@
 ﻿using System.ComponentModel.DataAnnotations;
 using VoiceCallAssistant.Models;
+using VoiceCallAssistant.Interfaces;
+using ILogger = Serilog.ILogger;
 
 namespace VoiceCallAssistant.Services;
 
-public class RoutineService //: IRoutineService
+public class RoutineService : IRoutineService
 {
-    public RoutineService()
+    private readonly ILogger _logger;
+    private readonly IRepository _repository;
+
+    public RoutineService(ILogger logger, IRepository repository)
     {
-        
+        _logger = logger;
+        _repository = repository;
+    }
+
+    public async Task<Routine?> GetRoutineByIdAsync(string routineId, CancellationToken cancellationToken)
+    {
+        var routine = await _repository.GetByIdAsync<Routine>(routineId, cancellationToken);
+
+        return routine;
     }
 
     public class RoutineModel
